@@ -1172,8 +1172,9 @@ class RunMETCorrectionsAndUncertainties(ConfigToolBase):
                                                          )
                 patMetModuleSequence += getattr(process, "genMetExtractor")
                 getattr(process, "patPFMet"+postfix).genMETSource = cms.InputTag("genMetExtractor")
-                getattr(process, "patPFMetTxyCorr"+postfix).srcPFlow = pfCandCollection
-                getattr(process, "patPFMetTxyCorr"+postfix).vertexCollection = cms.InputTag("offlineSlimmedPrimaryVertices")
+            
+            getattr(process, "patPFMetTxyCorr"+postfix).srcPFlow = pfCandCollection
+            getattr(process, "patPFMetTxyCorr"+postfix).vertexCollection = cms.InputTag("offlineSlimmedPrimaryVertices")
 
         #MM: FIXME MVA
         #if hasattr(process, "pfMVAMet"):
