@@ -1306,7 +1306,7 @@ def runMetCorAndUncForMiniAODProduction(process, metType="PF",
                                         muonColl="selectedPatMuons",
                                         tauColl="selectedPatTaus",
                                         jetCleaning="LepClean",
-                                        jecUnFile="PhysicsTools/PatUtils/data/Summer13_V1_DATA_UncertaintySources_AK5PF.txt", #no 13 TeV uncertainties yet...
+                                        jecUnFile="PhysicsTools/PatUtils/data/Summer15_50nsV2_DATA_UncertaintySources_AK4PFchs.txt",
                                         postfix=""):
 
     runMETCorrectionsAndUncertainties = RunMETCorrectionsAndUncertainties()
@@ -1380,7 +1380,7 @@ def runMetCorAndUncFromMiniAOD(process, metType="PF",
                                jetConfig=False,
                                jetCorLabelL3=cms.InputTag('ak4PFCHSL1FastL2L3Corrector'),
                                jetCorLabelRes=cms.InputTag('ak4PFCHSL1FastL2L3ResidualCorrector'),
-                               jecUnFile="PhysicsTools/PatUtils/data/Summer13_V1_DATA_UncertaintySources_AK5PF.txt", #no 13 TeV uncertainties yet...
+                               jecUnFile="PhysicsTools/PatUtils/data/PhysicsTools/PatUtils/data/Summer15_50nsV2_DATA_UncertaintySources_AK4PFchs.txt",
                                postfix=""):
 
     runMETCorrectionsAndUncertainties = RunMETCorrectionsAndUncertainties()
