@@ -270,7 +270,7 @@ class RunMETCorrectionsAndUncertainties(ConfigToolBase):
                                       repro74X,
                                       postfix
                                       )
-
+            
         #jet AK4 reclustering if needed for JECs
         if reclusterJets:
             jetCollection = self.ak4JetReclustering(process, pfCandCollection, 
@@ -339,7 +339,7 @@ class RunMETCorrectionsAndUncertainties(ConfigToolBase):
             #    setattr(process, "producePatPFMETCorrections", producePatPFMETCorrections)
             #    setattr(process, "patPFMetTxyCorrSequence", patPFMetTxyCorrSequence)
                 
-        if postfix != "" and metType == "PF":
+        if postfix != "" and metType == "PF" and not hasattr(process, 'pat'+metType+'Met'+postfix):
             setattr(process, 'pat'+metType+'Met'+postfix, getattr(process,'patPFMet' ).clone() )
             configtools.cloneProcessingSnippet(process, getattr(process,"producePatPFMETCorrections"), postfix)
             configtools.cloneProcessingSnippet(process, getattr(process,"patPFMetTxyCorrSequence"), postfix)
@@ -1156,7 +1156,6 @@ class RunMETCorrectionsAndUncertainties(ConfigToolBase):
     def miniAODConfiguration(self, process, pfCandCollection, patMetModuleSequence, repro74X, postfix ):
         
         if not hasattr(process, "pfMet"+postfix) and self._parameters["metType"].value == "PF":
-            
             from RecoMET.METProducers.PFMET_cfi import pfMet
             setattr(process, "pfMet"+postfix, pfMet.clone() )
             getattr(process, "pfMet"+postfix).src = pfCandCollection
@@ -1166,7 +1165,6 @@ class RunMETCorrectionsAndUncertainties(ConfigToolBase):
 
             getattr(process, "patPFMet"+postfix).metSource = cms.InputTag("pfMet"+postfix)
             getattr(process, "patPFMet"+postfix).addGenMET  = False
-
             if not self._parameters["runOnData"].value:
                 getattr(process, "patPFMet"+postfix).addGenMET  = True
                 process.genMetExtractor = cms.EDProducer("GenMETExtractor",
@@ -1174,9 +1172,8 @@ class RunMETCorrectionsAndUncertainties(ConfigToolBase):
                                                          )
                 patMetModuleSequence += getattr(process, "genMetExtractor")
                 getattr(process, "patPFMet"+postfix).genMETSource = cms.InputTag("genMetExtractor")
-
-            getattr(process, "patPFMetTxyCorr"+postfix).srcPFlow = pfCandCollection
-            getattr(process, "patPFMetTxyCorr"+postfix).vertexCollection = cms.InputTag("offlineSlimmedPrimaryVertices")
+                getattr(process, "patPFMetTxyCorr"+postfix).srcPFlow = pfCandCollection
+                getattr(process, "patPFMetTxyCorr"+postfix).vertexCollection = cms.InputTag("offlineSlimmedPrimaryVertices")
 
         #MM: FIXME MVA
         #if hasattr(process, "pfMVAMet"):
