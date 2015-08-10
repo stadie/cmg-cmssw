@@ -36,8 +36,8 @@ applyResiduals=True #application of residual corrections. Have to be set to True
 ### External JECs =====================================================================================================
 
 #from Configuration.StandardSequences.FrontierConditions_GlobalTag_condDBv2_cff import *
+process.load('Configuration.StandardSequences.FrontierConditions_GlobalTag_condDBv2_cff')
 from Configuration.AlCa.GlobalTag_condDBv2 import GlobalTag
-#process.GlobalTag.globaltag = options.GT
 
 if runOnData:
   process.GlobalTag.globaltag = '74X_dataRun2_Prompt_v1'
