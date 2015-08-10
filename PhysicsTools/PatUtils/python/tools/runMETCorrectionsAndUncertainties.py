@@ -1144,6 +1144,10 @@ class RunMETCorrectionsAndUncertainties(ConfigToolBase):
             getattr(process,"patJets"+postfix).getJetMCFlavour = False
             
             process.load("PhysicsTools.PatAlgos.recoLayer0.jetCorrections_cff")
+            if self._parameters["runOnData"].value:
+              levels = getattr(process,"patJetCorrFactors").levels
+              if "L2L3Residual" not in levels: levels.append("L2L3Residual")
+              getattr(process,"patJetCorrFactors").levels = levels
             if postfix !="":
                 setattr(process, "patJetCorrFactors"+postfix, getattr(process,"patJetCorrFactors").clone() )
             
