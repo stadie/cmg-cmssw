@@ -48,9 +48,9 @@ if usePrivateSQlite:
     from CondCore.DBCommon.CondDBSetup_cfi import *
     import os
     if runOnData:
-      era="Summer15_50nsV3_DATA"
+      era="Summer15_50nsV4_DATA"
     else:
-      era="Summer15_50nsV3_MC"
+      era="Summer15_50nsV4_MC"
     dBFile = os.path.expandvars("$CMSSW_BASE/src/PhysicsTools/PatAlgos/test/"+era+".db")
     process.jec = cms.ESSource("PoolDBESSource",CondDBSetup,
                                connect = cms.string( "sqlite_file://"+dBFile ),
