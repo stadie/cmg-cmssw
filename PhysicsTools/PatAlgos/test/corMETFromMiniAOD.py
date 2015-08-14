@@ -69,6 +69,9 @@ if usePrivateSQlite:
                                )
     process.es_prefer_jec = cms.ESPrefer("PoolDBESSource",'jec')
 
+#uncertainty file
+jecUncertaintyFile="PhysicsTools/PatUtils/data/Summer15_50nsV4_DATA_UncertaintySources_AK4PFchs.txt"
+
 ### =====================================================================================================
 
 
@@ -102,12 +105,14 @@ from PhysicsTools.PatUtils.tools.runMETCorrectionsAndUncertainties import runMet
 #for a full met computation, remove the pfCandColl input
 runMetCorAndUncFromMiniAOD(process,
                            isData=runOnData,
+                           jecUncFile=jecUncertaintyFile
                            )
 
 if not useHFCandidates:
     runMetCorAndUncFromMiniAOD(process,
                                isData=runOnData,
                                pfCandColl=cms.InputTag("noHFCands"),
+                               jecUncFile=jecUncertaintyFile,
                                postfix="NoHF"
                                )
 
