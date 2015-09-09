@@ -45,7 +45,7 @@ class METAnalyzer( Analyzer ):
         uX = - met.px() - boson.px()
         uY = - met.py() - boson.py()
         u1 = (uX*boson.px() + uY*boson.py())/boson.pt()
-        u2 = (uX*boson.px() - uY*boson.py())/boson.pt()
+        u2 = (uX*boson.py() - uY*boson.px())/boson.pt()
 
         setattr(met, "upara"+postfix, u1)
         setattr(met, "uperp"+postfix, u2)
@@ -88,20 +88,20 @@ class METAnalyzer( Analyzer ):
           ROOT.reco.Particle.LorentzVector(-1.*(sum([x.px() for x in chargedPVTight])) , -1.*(sum([x.py() for x in chargedPVTight])), 0, math.hypot((sum([x.px() for x in chargedPVTight])),(sum([x.py() for x in chargedPVTight]))) ))
 ##        print 'tkmet',self.tkMet.pt(),'tkmetphi',self.tkMet.phi()
 
-        event.tkMet.sumEt = sum([x.pt() for x in charged])
-        event.tkMetPVchs.sumEt = sum([x.pt() for x in chargedchs])
-        event.tkMetPVLoose.sumEt = sum([x.pt() for x in chargedPVLoose])
-        event.tkMetPVTight.sumEt = sum([x.pt() for x in chargedPVTight])
+        getattr(event,"tkMet"+self.cfg_ana.collectionPostFix).sumEt = sum([x.pt() for x in charged])
+        getattr(event,"tkMetPVchs"+self.cfg_ana.collectionPostFix).sumEt = sum([x.pt() for x in chargedchs])
+        getattr(event,"tkMetPVLoose"+self.cfg_ana.collectionPostFix).sumEt = sum([x.pt() for x in chargedPVLoose])
+        getattr(event,"tkMetPVTight"+self.cfg_ana.collectionPostFix).sumEt = sum([x.pt() for x in chargedPVTight])
 
         if  hasattr(event,'zll_p4'):
-            self.adduParaPerp(event.tkMet, event.zll_p4,"_zll")
-            self.adduParaPerp(event.tkMetPVchs, event.zll_p4,"_zll")
-            self.adduParaPerp(event.tkMetPVLoose, event.zll_p4,"_zll")
-            self.adduParaPerp(event.tkMetPVTight, event.zll_p4,"_zll")
+            self.adduParaPerp(getattr(event,"tkMet"+self.cfg_ana.collectionPostFix), event.zll_p4,"_zll")
+            self.adduParaPerp(getattr(event,"tkMetPVchs"+self.cfg_ana.collectionPostFix), event.zll_p4,"_zll")
+            self.adduParaPerp(getattr(event,"tkMetPVLoose"+self.cfg_ana.collectionPostFix), event.zll_p4,"_zll")
+            self.adduParaPerp(getattr(event,"tkMetPVTight"+self.cfg_ana.collectionPostFix), event.zll_p4,"_zll")
 
     def makeGenTkMet(self, event):
         genCharged = [ x for x in self.mchandles['packedGen'].product() if x.charge() != 0 and abs(x.eta()) < 2.4 ]
-        event.tkGenMet = ROOT.reco.Particle.LorentzVector(-1.*(sum([x.px() for x in genCharged])) , -1.*(sum([x.py() for x in genCharged])), 0, math.hypot((sum([x.px() for x in genCharged])),(sum([x.py() for x in genCharged]))) )
+        setattr(event,"tkGenMet"+self.cfg_ana.collectionPostFix, ROOT.reco.Particle.LorentzVector(-1.*(sum([x.px() for x in genCharged])) , -1.*(sum([x.py() for x in genCharged])), 0, math.hypot((sum([x.px() for x in genCharged])),(sum([x.py() for x in genCharged]))) ))
 
     def makeMETNoMu(self, event):
         self.metNoMu = copy.deepcopy(self.met)
@@ -189,7 +189,14 @@ class METAnalyzer( Analyzer ):
         self.met_sumet = self.met.sumEt()
         if  hasattr(event,'zll_p4'):
             self.adduParaPerp(self.met,event.zll_p4,"_zll")
-            self.adduParaPerp(self.met,event.zll_p4,"_zll")
+
+        if  hasattr(event,'zll_p4'):
+            px,py=self.met.shiftedPx(self.met.NoShift, self.met.Raw),self.met.shiftedPy(self.met.NoShift, self.met.Raw)
+            self.met_raw=ROOT.reco.Particle.LorentzVector(px,py,0,math.hypot(px,py))
+            self.adduParaPerp(self.met_raw, event.zll_p4,"_zll")
+            setattr(event,"met_raw"+self.cfg_ana.collectionPostFix, self.met_raw)
+            setattr(event,"met_raw.upara_zll"+self.cfg_ana.collectionPostFix, self.met_raw.upara_zll)
+            setattr(event,"met_raw.uperp_zll"+self.cfg_ana.collectionPostFix, self.met_raw.uperp_zll)
 
         if self.cfg_ana.recalibrate and hasattr(event, 'deltaMetFromJetSmearing'+self.cfg_ana.jetAnalyzerCalibrationPostFix):
           deltaMetSmear = getattr(event, 'deltaMetFromJetSmearing'+self.cfg_ana.jetAnalyzerCalibrationPostFix)
@@ -204,11 +211,20 @@ class METAnalyzer( Analyzer ):
             self.applyDeltaMet(self.metNoPU, deltaMetJEC)
 #          print 'after JEC', self.cfg_ana.collectionPostFix, self.met.px(),self.met.py(), 'deltaMetFromJEC'+self.cfg_ana.jetAnalyzerCalibrationPostFix, deltaMetJEC
 
+        if hasattr(event,"met"+self.cfg_ana.collectionPostFix): raise RuntimeError, "Event already contains met with the following postfix: "+self.cfg_ana.collectionPostFix
         setattr(event, "met"+self.cfg_ana.collectionPostFix, self.met)
         if self.cfg_ana.doMetNoPU: setattr(event, "metNoPU"+self.cfg_ana.collectionPostFix, self.metNoPU)
         setattr(event, "met_sig"+self.cfg_ana.collectionPostFix, self.met_sig)
         setattr(event, "met_sumet"+self.cfg_ana.collectionPostFix, self.met_sumet)
-        
+
+        genMET = self.met.genMET()
+        if genMET:
+          setattr(event, "met_genPt"+self.cfg_ana.collectionPostFix, genMET.pt())
+          setattr(event, "met_genPhi"+self.cfg_ana.collectionPostFix, genMET.phi())
+        else:
+          setattr(event, "met_genPt"+self.cfg_ana.collectionPostFix, float('nan'))
+          setattr(event, "met_genPhi"+self.cfg_ana.collectionPostFix, float('nan'))
+
         if self.cfg_ana.doMetNoMu and hasattr(event, 'selectedMuons'):
             self.makeMETNoMu(event)
 

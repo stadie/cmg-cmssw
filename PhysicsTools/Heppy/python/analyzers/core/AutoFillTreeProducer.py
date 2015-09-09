@@ -25,11 +25,11 @@ class AutoFillTreeProducer( TreeAnalyzerNumpy ):
         self.globalObjects = {}
         self.globalVariables = []
         if hasattr(cfg_ana,"collections"):
-                self.collections=cfg_ana.collections
+                self.collections.update(cfg_ana.collections)
         if hasattr(cfg_ana,"globalObjects"):
-                self.globalObjects=cfg_ana.globalObjects
+                self.globalObjects.update(cfg_ana.globalObjects)
         if hasattr(cfg_ana,"globalVariables"):
-                self.globalVariables=cfg_ana.globalVariables
+                self.globalVariables=cfg_ana.globalVariables[:]
 
     def beginLoop(self, setup) :
         super(AutoFillTreeProducer, self).beginLoop(setup)
@@ -57,7 +57,10 @@ class AutoFillTreeProducer( TreeAnalyzerNumpy ):
  #                   trigVec.push_back(TP)
  #               tr.var( 'HLT_'+T, int )
 #                self.triggerBitCheckers.append( (T, TriggerBitChecker(trigVec)) )
- 
+
+        if not isMC:
+            tr.var('intLumi', int, storageType="i")
+
         if isMC:
             ## cross section
             tr.var('xsec', float)
@@ -112,6 +115,9 @@ class AutoFillTreeProducer( TreeAnalyzerNumpy ):
 #       triggerResults = self.handles['TriggerResults'].product()
 #       for T,TC in self.triggerBitCheckers:
 #           tr.fill("HLT_"+T, TC.check(event.object(), triggerResults))
+
+        if not isMC:
+            tr.fill('intLumi', getattr(self.cfg_comp,'intLumi',1.0))
 
         if isMC:
             ## xsection, if available

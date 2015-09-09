@@ -6,17 +6,19 @@ from CMGTools.ObjectStudies.samples.samples_METPOG_private import * #<-- this on
 from CMGTools.RootTools.samples.samples_13TeV_74X import *
 from CMGTools.RootTools.samples.samples_13TeV_DATA2015 import *
 
-from CMGTools.RootTools.samples.triggers_13TeV_Spring15 import triggers_1mu_iso_50ns, triggers_mumu
+from CMGTools.RootTools.samples.triggers_13TeV_Spring15 import triggers_1mu_iso_50ns, triggers_mumu, triggers_ee, triggers_photon30, triggers_photon50, triggers_photon75, triggers_photon90, triggers_photon120
 
 #-------- INITIAL FLAG
-
 isDiJet=False
 isZSkim=False
 is1L=False
+isEle = False # default is diMuon
+isEarlyRun = False # to be used for the filters
+is25ns = False
 
 #-------- HOW TO RUN
 
-test = 3
+test = 13
 
 if test==0:
     selectedComponents = [DoubleMu_742, DoubleMu_740p9]
@@ -47,18 +49,28 @@ elif test==1:
 
 
    # ----------------------- Summer15 options -------------------------------------------------------------------- #
-
-elif test==3:
-    selectedComponents = [ DYJetsToLL_M50_50ns,TTJets_50ns ]
+elif test==2:
+    selectedComponents = [ DYJetsToLL_M50_50ns ]
     isZSkim=True
     for comp in selectedComponents:
         comp.triggers = triggers_mumu
+        comp.splitFactor = 1
+        comp.files = comp.files[:1]
+
+elif test==3:
+    isZSkim=True
+    selectedComponents = [ DYJetsToLL_M50_50ns,TTJets_50ns ]
+    for comp in selectedComponents:
+        if isEle:
+            comp.triggers = triggers_ee
+        else:
+            comp.triggers = triggers_mumu
         comp.splitFactor = 1000
         comp.files = comp.files[:]
 
 elif test==4:
-    selectedComponents = [ WJetsToLNu_50ns ]
     is1L=False
+    selectedComponents = [ WJetsToLNu_50ns ]
     for comp in selectedComponents:
         comp.splitFactor = 1000
         comp.files = comp.files[:]
@@ -69,19 +81,36 @@ elif test==5:
     for comp in selectedComponents:
         comp.splitFactor = 1000
         comp.files = comp.files[:]
+        comp.fineSplitFactor = 5
 
     # ------------------------------------------------------------------------------------------- #
 
 ### this is for the Zskim
 elif test==13:
     isZSkim=True
-    selectedComponents = [ DoubleMuon_Run2015B ]
+    if isEle:
+        if is25ns:
+            selectedComponents = [ DoubleEG_Run2015C ]
+        else:
+            selectedComponents = [ DoubleEG_Run2015B ]
+    else:
+        if is25ns:
+            selectedComponents = [ DoubleMuon_Run2015C ]
+        else:
+            selectedComponents = [ DoubleMuon_Run2015B ]
+
     for comp in selectedComponents:
+#        comp.splitFactor = 1
+#        comp.files = comp.files[:]
+#        comp.fineSplitFactor = 1
         comp.splitFactor = 1000
         comp.files = comp.files[:]
-        comp.triggers = triggers_mumu
-        comp.json = "$CMSSW_BASE/src/CMGTools/TTHAnalysis/data/json/Cert_246908-251252_13TeV_PromptReco_Collisions15_JSON.json"
-        comp.lumi= 0.0056
+        if isEle:
+            comp.triggers = triggers_ee
+        else:
+            comp.triggers = triggers_mumu
+        comp.json = os.environ['CMSSW_BASE']+"/src/CMGTools/TTHAnalysis/data/json/Cert_246908-254879_13TeV_PromptReco_Collisions15_JSON.json"
+        comp.intLumi= 0.04003
         print comp
 
 ### this is for the Wskim
@@ -91,20 +120,57 @@ elif test==14:
     for comp in selectedComponents:
         comp.splitFactor = 1000
         comp.files = comp.files[:]
-        comp.json = "$CMSSW_BASE/src/CMGTools/TTHAnalysis/data/json/Cert_246908-251252_13TeV_PromptReco_Collisions15_JSON.json"
-        comp.lumi= 0.0056
+        comp.json = os.environ['CMSSW_BASE']+"/src/CMGTools/TTHAnalysis/data/json/Cert_246908-254879_13TeV_PromptReco_Collisions15_JSON.json"
+        comp.intLumi= 0.04003
 
 ### this is for the QCDlike
 elif test==15:
     isDiJet=True
-    selectedComponents = [ JetHT_Run2015B, HTMHT_Run2015B, MET_Run2015B ]
+    if isEarlyRun:
+        selectedComponents = [ JetHT_Run2015B_17Jul, HTMHT_Run2015B_17Jul, MET_Run2015B_17Jul ]
+    else:
+        selectedComponents = [ JetHT_Run2015B, HTMHT_Run2015B, MET_Run2015B ]
     for comp in selectedComponents:
         comp.splitFactor = 1000
         comp.files = comp.files[:]
-        comp.json = "$CMSSW_BASE/src/CMGTools/TTHAnalysis/data/json/Cert_246908-251252_13TeV_PromptReco_Collisions15_JSON.json"
-        comp.lumi= 0.0056
+        comp.json = os.environ['CMSSW_BASE']+"/src/CMGTools/TTHAnalysis/data/json/Cert_246908-254879_13TeV_PromptReco_Collisions15_JSON.json"
+        comp.intLumi= 0.04003
+        if isEarlyRun:
+            comp.run_range=(251027,251585) # in 17july runInJSON: 251244,251251,251252,251561,251562
+        else:
+            comp.run_range=(251585,251883) # in promptReco runInJSON: 251643,251721,251883
+        print comp
 
-# ------------------------------------------------------------------------------------------- #
+### this is for the PhotonSkim
+elif test==16:
+    is1PH=True
+    selectedComponents = [ SinglePhoton_Run2015B ]
+    for comp in selectedComponents:
+        comp.triggers = triggers_photon30 + triggers_photon50 + triggers_photon75 + triggers_photon90 + triggers_photon120
+        comp.splitFactor = 1
+        comp.files = comp.files[:]
+        comp.json = os.environ['CMSSW_BASE']+"/src/CMGTools/TTHAnalysis/data/json/Cert_246908-254879_13TeV_PromptReco_Collisions15_JSON.json"
+        comp.intLumi= 0.04003
+
+    # ------------------------------------------------------------------------------------------- #
+    #        --> 25ns here
+
+elif test==23:
+    isZSkim=True
+    is25ns=True
+    selectedComponents = [ DYJetsToLL_M50 ]
+    for comp in selectedComponents:
+        if isEle:
+            comp.triggers = triggers_ee
+        else:
+            comp.triggers = triggers_mumu
+#        comp.splitFactor = 1
+#        comp.files = comp.files[:1]
+        comp.splitFactor = 1000
+        comp.files = comp.files[:]
+
+    # ------------------------------------------------------------------------------------------- #
+    # ------------------------------------------------------------------------------------------- #
 
 from CMGTools.ObjectStudies.analyzers.metCoreModules_cff import *
 
@@ -137,7 +203,7 @@ metAna.doTkMet = True
 metAna.doSpecialMet = False
 
 metSequence = cfg.Sequence(
-    metCoreSequence +[treeProducer]
+    metCoreSequence + [treeProducer]
     )
 
 ###---- to switch off the comptrssion
@@ -148,6 +214,9 @@ metSequence = cfg.Sequence(
 if isZSkim:
     ttHLepSkim.ptCuts = [20,10]
     ttHLepSkim.minLeptons = 2
+    if isZSkim and isEle:
+        ttHLepSkim.ptCuts = [25,15]
+        ttHZskim.lepId=[11] ## default is set To Muons
     metSequence.insert(metSequence.index(lepAna)+1,ttHLepSkim)
     metSequence.insert(metSequence.index(lepAna)+2,ttHZskim)
 
@@ -155,14 +224,24 @@ if is1L:
     ttHLepSkim.minLeptons = 1
     metSequence.insert(metSequence.index(lepAna)+1,ttHLepSkim)
 
-if comp.isData :
-    eventFlagsAna.processName = 'HLT'
+if isDiJet:
+    metSequence.insert(metSequence.index(photonAna)+1,jetAna)
+    metSequence.insert(metSequence.index(photonAna)+2,ttHJetMETSkim)
+
+
+if comp.isData and not isEarlyRun:
+    eventFlagsAna.processName = 'RECO'
+
+if comp.isData and comp.json is None:
+    metSequence.remove(jsonAna)
 
 # --------------------
 
 triggerFlagsAna.triggerBits = {
-            'SingleMu' : triggers_1mu_iso_50ns, # [ 'HLT_IsoMu17_eta2p1_v*', 'HLT_IsoTkMu17_eta2p1_v*'  ] + [ 'HLT_IsoMu20_v*', 'HLT_IsoTkMu20_v*'  ] $
-            'DoubleMu' : triggers_mumu, # [ "HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ_v*", "HLT_Mu17_TrkIsoVVL_TkMu8_TrkIsoVVL_DZ_v*" ]                    $
+            'SingleMu' : triggers_1mu_iso_50ns, # [ 'HLT_IsoMu17_eta2p1_v*', 'HLT_IsoTkMu17_eta2p1_v*'  ] + [ 'HLT_IsoMu20_v*', 'HLT_IsoTkMu20_v*'  ]
+            'DoubleMu' : triggers_mumu, # [ "HLT_Mu17_TrkIsoVVL_Mu8_TrkIsoVVL_DZ_v*", "HLT_Mu17_TrkIsoVVL_TkMu8_TrkIsoVVL_DZ_v*" ]
+            'DoubleEG' : triggers_ee, # [ "HLT_Ele23_Ele12_CaloIdL_TrackIdL_IsoVL_DZ_v*" ]
+            'Photon30' : triggers_photon30, #["HLT_Photon30_R9Id90_HE10_IsoM_v*"]
 }
 
 
@@ -194,17 +273,52 @@ if getHeppyOption("nofetch"):
 
 
 # -------------------- Running pre-processor
+import subprocess
+if comp.isData:
+    removeResiduals = False
+    uncFile = os.environ['CMSSW_BASE']+'/src/CMGTools/RootTools/data/jec/Summer15_50nsV4_DATA_UncertaintySources_AK4PFchs.txt'
+    jecDBFile = os.environ['CMSSW_BASE']+'/src/CMGTools/RootTools/data/jec/Summer15_50nsV4_DATA.db'
+    jecEra    = 'Summer15_50nsV4_DATA'
+else:
+    if not is25ns:
+        removeResiduals = False
+        uncFile = os.environ['CMSSW_BASE']+'/src/CMGTools/RootTools/data/jec/Summer15_50nsV4_MC_UncertaintySources_AK4PFchs.txt'
+        jecDBFile = os.environ['CMSSW_BASE']+'/src/CMGTools/RootTools/data/jec/Summer15_50nsV4_MC.db'
+        jecEra    = 'Summer15_50nsV4_MC'
+    else:
+        removeResiduals = True
+        uncFile = os.environ['CMSSW_BASE']+'/src/CMGTools/RootTools/data/jec/Summer15_25nsV2_MC_UncertaintySources_AK4PFchs.txt'
+        jecDBFile = os.environ['CMSSW_BASE']+'/src/CMGTools/RootTools/data/jec/Summer15_25nsV2_MC.db'
+        jecEra    = 'Summer15_25nsV2_MC'
 
+preprocessorFile = "$CMSSW_BASE/tmp/MetType1_jec_%s.py"%(jecEra)
+extraArgs=[]
+if comp.isData:
+  extraArgs.append('--isData')
+  GT= '74X_dataRun2_Prompt_v1'
+else:
+  GT= 'MCRUN2_74_V9A'
+if removeResiduals:extraArgs.append('--removeResiduals')
+args = ['python', 
+  os.path.expandvars(os.environ['CMSSW_BASE']+'/python/CMGTools/ObjectStudies/corMETMiniAOD_cfgCreator.py'),\
+  '--GT='+GT, 
+  '--outputFile='+preprocessorFile, 
+  '--jecDBFile='+jecDBFile,
+  '--jecEra='+jecEra
+  ] + extraArgs 
+#print "Making pre-processorfile:"
+#print " ".join(args)
+subprocess.call(args)
 from PhysicsTools.Heppy.utils.cmsswPreprocessor import CmsswPreprocessor
-preprocessor = CmsswPreprocessor("$CMSSW_BASE/src/CMGTools/ObjectStudies/cfg/MetType1_dump.py")
+preprocessor = CmsswPreprocessor(preprocessorFile)
 
 #printComps(config.components, True)               
 config = cfg.Config( components = selectedComponents,
                      sequence = metSequence,
                      services = [output_service],
-#                     preprocessor=preprocessor, # comment if pre-processor non needed
-                     events_class = event_class)
-#                     events_class = Events)
+                     preprocessor=preprocessor, # comment if pre-processor non needed
+#                     events_class = event_class)
+                     events_class = Events)
 
 #printComps(config.components, True)
         

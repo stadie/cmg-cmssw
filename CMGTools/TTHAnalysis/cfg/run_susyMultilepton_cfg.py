@@ -3,14 +3,16 @@
 ## skim condition: >= 2 loose leptons, no pt cuts or id ##
 ##########################################################
 import PhysicsTools.HeppyCore.framework.config as cfg
+import re
 
 
 #-------- LOAD ALL ANALYZERS -----------
 
 from CMGTools.TTHAnalysis.analyzers.susyCore_modules_cff import *
 
-
 #-------- REDEFINE WHAT I NEED -----------
+
+SOS = False ## switch True to overwrite settings for SOS skim (N.B. default settings are those from multilepton preselection)
 
 # Lepton Skimming
 ttHLepSkim.minLeptons = 2
@@ -23,11 +25,35 @@ lepAna.doMiniIsolation = True
 lepAna.packedCandidates = 'packedPFCandidates'
 lepAna.miniIsolationPUCorr = 'rhoArea'
 lepAna.miniIsolationVetoLeptons = None # use 'inclusive' to veto inclusive leptons and their footprint in all isolation cones
-    
+lepAna.doIsolationScan = False
+
 # Lepton Preselection
 lepAna.loose_electron_id = "POG_MVA_ID_Run2_NonTrig_VLoose"
-
 isolation = "miniIso"
+
+if SOS == True:
+## -- SOS preselection settings ---
+
+    # Lepton Skimming
+    ttHLepSkim.minLeptons = 2
+    ttHLepSkim.maxLeptons = 999
+    ttHLepSkim.ptCuts = [5,3]
+    
+    # Jet-Met Skimming
+    ttHJetMETSkim.jetPtCuts = [100,]
+    ttHJetMETSkim.metCut    = 100
+
+    # Lepton Preselection
+    lepAna.inclusive_muon_pt  = 3
+    lepAna.loose_muon_pt  = 3
+    lepAna.inclusive_electron_pt  = 5
+    lepAna.loose_electron_pt  = 5
+    isolation = "absIso03"
+
+    # Lepton-Jet Cleaning
+    jetAna.minLepPt = 20 
+    # otherwise with only absIso cut at 10 GeV and no relIso we risk cleaning away good jets
+
 #isolation = "ptRel"
 if isolation == "ptRel": 
     # delay isolation cut for leptons of pt > 10, for which we do pTrel recovery
@@ -54,12 +80,31 @@ elif isolation == "miniIso":
 elif isolation == None:
     lepAna.loose_muon_isoCut     = lambda muon : True
     lepAna.loose_electron_isoCut = lambda elec : True
+elif isolation == "absIso03":
+    lepAna.loose_muon_absIso = 10.0
+    lepAna.loose_electron_relIso = 99.0
+    lepAna.loose_muon_relIso = 99.0
+    lepAna.loose_electron_absIso = 10.0
 else:
     # nothing to do, will use normal relIso03
     pass
 
+# Switch on slow QGL
+jetAna.doQG = True
+
 # Switch off slow photon MC matching
 photonAna.do_mc_match = False
+
+# Loose Tau configuration
+tauAna.loose_decayModeID = "decayModeFinding"
+tauAna.loose_ptMin = 20
+tauAna.loose_etaMax = 2.3
+# Current ra7 config (but not ttH)
+#tauAna.loose_vetoLeptonsPOG = True
+#tauAna.loose_tauAntiMuonID = "againstMuonTight"
+#tauAna.loose_tauAntiElectronID = "againstElectronLoose"
+if False: #if cleaning jet-loose tau cleaning
+    jetAna.cleanJetsFromTaus = True
 
 
 #-------- ADDITIONAL ANALYZERS -----------
@@ -110,6 +155,38 @@ susyCoreSequence.insert(susyCoreSequence.index(ttHFatJetAna)+1, ttHDecluster)
 
 
 from CMGTools.TTHAnalysis.analyzers.treeProducerSusyMultilepton import * 
+
+if lepAna.doIsolationScan:
+    leptonTypeSusyExtra.addVariables([
+            NTupleVariable("scanAbsIsoCharged005", lambda x : x.ScanAbsIsoCharged005 if hasattr(x,'ScanAbsIsoCharged005') else -999, help="PF abs charged isolation dR=0.05, no pile-up correction"),
+            NTupleVariable("scanAbsIsoCharged01", lambda x : x.ScanAbsIsoCharged01 if hasattr(x,'ScanAbsIsoCharged01') else -999, help="PF abs charged isolation dR=0.1, no pile-up correction"),
+            NTupleVariable("scanAbsIsoCharged02", lambda x : x.ScanAbsIsoCharged02 if hasattr(x,'ScanAbsIsoCharged02') else -999, help="PF abs charged isolation dR=0.2, no pile-up correction"),
+            NTupleVariable("scanAbsIsoCharged03", lambda x : x.ScanAbsIsoCharged03 if hasattr(x,'ScanAbsIsoCharged03') else -999, help="PF abs charged isolation dR=0.3, no pile-up correction"),
+            NTupleVariable("scanAbsIsoCharged04", lambda x : x.ScanAbsIsoCharged04 if hasattr(x,'ScanAbsIsoCharged04') else -999, help="PF abs charged isolation dR=0.4, no pile-up correction"),
+            NTupleVariable("scanAbsIsoNeutral005", lambda x : x.ScanAbsIsoNeutral005 if hasattr(x,'ScanAbsIsoNeutral005') else -999, help="PF abs neutral+photon isolation dR=0.05, no pile-up correction"),
+            NTupleVariable("scanAbsIsoNeutral01", lambda x : x.ScanAbsIsoNeutral01 if hasattr(x,'ScanAbsIsoNeutral01') else -999, help="PF abs neutral+photon isolation dR=0.1, no pile-up correction"),
+            NTupleVariable("scanAbsIsoNeutral02", lambda x : x.ScanAbsIsoNeutral02 if hasattr(x,'ScanAbsIsoNeutral02') else -999, help="PF abs neutral+photon isolation dR=0.2, no pile-up correction"),
+            NTupleVariable("scanAbsIsoNeutral03", lambda x : x.ScanAbsIsoNeutral03 if hasattr(x,'ScanAbsIsoNeutral03') else -999, help="PF abs neutral+photon isolation dR=0.3, no pile-up correction"),
+            NTupleVariable("scanAbsIsoNeutral04", lambda x : x.ScanAbsIsoNeutral04 if hasattr(x,'ScanAbsIsoNeutral04') else -999, help="PF abs neutral+photon isolation dR=0.4, no pile-up correction"),
+            ])
+
+jetAna.calculateSeparateCorrections=True
+if jetAna.calculateSeparateCorrections:
+    jetTypeSusyExtra.addVariables([
+            NTupleVariable("CorrFactor_L1", lambda x: x.CorrFactor_L1 if hasattr(x,'CorrFactor_L1') else 0, help="L1 correction factor"),
+            NTupleVariable("CorrFactor_L1L2", lambda x: x.CorrFactor_L1L2 if hasattr(x,'CorrFactor_L1L2') else 0, help="L1L2 correction factor"),
+            NTupleVariable("CorrFactor_L1L2L3", lambda x: x.CorrFactor_L1L2L3 if hasattr(x,'CorrFactor_L1L2L3') else 0, help="L1L2L3 correction factor"),
+            NTupleVariable("CorrFactor_L1L2L3Res", lambda x: x.CorrFactor_L1L2L3Res if hasattr(x,'CorrFactor_L1L2L3Res') else 0, help="L1L2L3Res correction factor")
+            ])
+    leptonTypeSusyExtra.addVariables([
+            NTupleVariable("jetPt", lambda x: x.jet.pt() if x.jet!=x else x.pt(), help="matched jet corrected pt"),
+            NTupleVariable("jetRawPt", lambda x: x.jet.pt() * x.jet.rawFactor() if x.jet!=x else x.pt(), help="matched jet raw pt"),
+            NTupleVariable("jetCorrFactor_L1", lambda x: x.jet.CorrFactor_L1 if hasattr(x.jet,'CorrFactor_L1') else 1, help="matched jet L1 correction factor"),
+            NTupleVariable("jetCorrFactor_L1L2", lambda x: x.jet.CorrFactor_L1L2 if hasattr(x.jet,'CorrFactor_L1L2') else 1, help="matched jet L1L2 correction factor"),
+            NTupleVariable("jetCorrFactor_L1L2L3", lambda x: x.jet.CorrFactor_L1L2L3 if hasattr(x.jet,'CorrFactor_L1L2L3') else 1, help="matched jet L1L2L3 correction factor"),
+            NTupleVariable("jetCorrFactor_L1L2L3Res", lambda x: x.jet.CorrFactor_L1L2L3Res if hasattr(x.jet,'CorrFactor_L1L2L3Res') else 1, help="matched jet L1L2L3Res correction factor")            
+            ])
+
 ## Tree Producer
 treeProducer = cfg.Analyzer(
      AutoFillTreeProducer, name='treeProducerSusyMultilepton',
@@ -126,6 +203,38 @@ treeProducer = cfg.Analyzer(
 susyCoreSequence.insert(susyCoreSequence.index(skimAnalyzer),
                         susyCounter)
 
+# HBHE new filter
+from CMGTools.TTHAnalysis.analyzers.hbheAnalyzer import hbheAnalyzer
+hbheAna = cfg.Analyzer(
+    hbheAnalyzer, name="hbheAnalyzer",
+    )
+susyCoreSequence.insert(susyCoreSequence.index(ttHCoreEventAna),hbheAna)
+treeProducer.globalVariables.append(NTupleVariable("hbheFilterNew50ns", lambda ev: ev.hbheFilterNew50ns, int, help="new HBHE filter for 50 ns"))
+treeProducer.globalVariables.append(NTupleVariable("hbheFilterNew25ns", lambda ev: ev.hbheFilterNew25ns, int, help="new HBHE filter for 25 ns"))
+treeProducer.globalVariables.append(NTupleVariable("hbheFilterIso", lambda ev: ev.hbheFilterIso, int, help="HBHE iso-based noise filter"))
+
+#additional MET quantities
+metAna.doTkMet = True
+treeProducer.globalVariables.append(NTupleVariable("met_trkPt", lambda ev : ev.tkMet.pt() if  hasattr(ev,'tkMet') else  0, help="tkmet p_{T}"))
+treeProducer.globalVariables.append(NTupleVariable("met_trkPhi", lambda ev : ev.tkMet.phi() if  hasattr(ev,'tkMet') else  0, help="tkmet phi"))
+
+# MET preprocessor and ak4PFchs charged-only jets
+doMETpreprocessor = True
+doAK4PFCHSchargedJets = True
+
+if doMETpreprocessor:
+    susyCoreSequence.insert(susyCoreSequence.index(metAna)+1,metNoHFAna)
+    metNoHFAna.doTkMet = True
+    treeProducer.globalObjects.update({"metNoHF"  : NTupleObject("metNoHF", metType, help="PF E_{T}^{miss}, after type 1 corrections (NoHF)")})
+    treeProducer.globalVariables.append(NTupleVariable("metNoHF_rawPt", lambda ev : ev.metNoHF.uncorrectedPt() if  hasattr(ev,'metNoHF') else  0, help="raw NoHF met p_{T}"))
+    treeProducer.globalVariables.append(NTupleVariable("metNoHF_rawPhi", lambda ev : ev.metNoHF.uncorrectedPhi() if  hasattr(ev,'metNoHF') else  0, help="raw NoHF met phi"))
+    treeProducer.globalVariables.append(NTupleVariable("metNoHF_trkPt", lambda ev : ev.tkMetNoHF.pt() if  hasattr(ev,'tkMetNoHF') else  0, help="tkmetNoHF p_{T}"))
+    treeProducer.globalVariables.append(NTupleVariable("metNoHF_trkPhi", lambda ev : ev.tkMetNoHF.phi() if  hasattr(ev,'tkMetNoHF') else  0, help="tkmetNoHF phi"))
+if doAK4PFCHSchargedJets:
+    if not doMETpreprocessor: raise RuntimeError, "ak4PFchs charged-only jets are reclustered in the MET preprocessor, but this configuration is not going to run it"
+    treeProducer.collections["cleanJetsPFChargedCHS"] = NTupleCollection("JetPFChargedCHS", jetTypeSusyExtra, 15, help="Central PFChargedCHS jets after full selection and cleaning, sorted by pt") # ak4PFchs charged-only jets
+    susyCoreSequence.insert(susyCoreSequence.index(ttHCoreEventAna), pfChargedCHSjetAna)
+#treeProducer.collections["jetsAllNoID"] = NTupleCollection("AllJet", jetTypeSusyExtra, 15, help="Central jets, sorted by pt") # warning, increases tree size considerably
 
 #-------- SAMPLES AND TRIGGERS -----------
 
@@ -154,66 +263,99 @@ triggerFlagsAna.triggerBits = {
     'DoubleMu_8TeV' : triggers_mumu_8TeV + triggers_mumu_run1,
     'MuEG_8TeV'     : triggers_mue_8TeV + triggers_mue_run1,
     'DoubleEl_8TeV' : triggers_ee_8TeV + triggers_ee_run1,
+    'MonoJet80MET90' : triggers_Jet80MET90,
+    'MonoJet80MET120' : triggers_Jet80MET120,
+    'METMu5' : triggers_MET120Mu5,
 }
 
 from CMGTools.RootTools.samples.samples_13TeV_74X import *
 from CMGTools.RootTools.samples.samples_13TeV_74X_susySignalsPriv import *
 from CMGTools.RootTools.samples.samples_8TeVReReco_74X import *
+from CMGTools.RootTools.samples.samples_13TeV_DATA2015 import *
 
+
+## 8TeV data 74X ReReco
 selectedComponents = [ SingleMu_742, MuEG_742, DoubleMu_742 ] 
-selectedComponents = [ TTJets, TTJets_LO, WJetsToLNu, DYJetsToLL_M10to50,  DYJetsToLL_M50,  ] + SingleTop + DiBosons
+## 25 ns 74X MC samples
+selectedComponents = [ TTJets, TTJets_LO, WJetsToLNu, DYJetsToLL_M10to50,  DYJetsToLL_M50,  ] + SingleTop + DiBosons + TTV + Higgs
 selectedComponents = mcSamplesPriv 
+## 50 ns 74X MC samples
+selectedComponents = [ DYJetsToLL_M10to50_50ns, DYJetsToLL_M50_50ns, TBar_tWch_50ns, TTJets_LO_50ns, TToLeptons_tch_50ns, T_tWch_50ns, WJetsToLNu_50ns, WWTo2L2Nu_50ns, WZp8_50ns, ZZp8_50ns, TTJets_50ns ]
+selectedComponents = [ TT_pow_50ns ]
+selectedComponents = [ DYJetsToLL_LO_M50_50ns ]
+
+isData = False
 
 if False: # select only a subset of a sample, corresponding to a given luminosity (assuming ~30k events per MiniAOD file, which is ok for central production)
-    target_lumi = 5000 # in inverse picobarns
+    target_lumi = 1000 # in inverse picobarns
     for c in selectedComponents:
+        if not c.isMC: continue
         nfiles = int(min(ceil(target_lumi * c.xSection / 30e3), len(c.files)))
-        print "For component %s, will want %d/%d files" % (c.name, nfiles, len(c.files))
+        #if nfiles < 50: nfiles = min(4*nfiles, len(c.files))
+        print "For component %s, will want %d/%d files; AAA %s" % (c.name, nfiles, len(c.files), "eoscms" not in c.files[0])
         c.files = c.files[:nfiles]
         c.splitFactor = len(c.files)
+        c.fineSplitFactor = 1
+        #c.splitFactor = 1; c.fineSplitFactor = 4
 
 if False: # For running on data
-    json = None; 
-    processing = "Run2015B-PromptReco-v1"; short = "Run2015B_v1"; 
-    run_ranges = [ (251244,251244), (251251,251252), (251559,251562), (251636,251636), (251638,251638), (251640,251640), (251643,251643), (251721,251721), (251883,251883) ]
+    isData = True
+#    json = "/afs/cern.ch/cms/CAF/CMSCOMM/COMM_DQM/certification/Collisions15/13TeV/Cert_246908-251883_13TeV_PromptReco_Collisions15_JSON.txt";  # contains low-pu run
+    json = "/afs/cern.ch/cms/CAF/CMSCOMM/COMM_DQM/certification/Collisions15/13TeV/Cert_246908-251883_13TeV_PromptReco_Collisions15_JSON_v2.txt"; # recommended for use
+    processing = "Run2015B-17Jul2015-v1"; short = "Run2015B_17Jul2015"; run_ranges = [ (251244, 251562) ]; useAAA=False
+    #processing = "Run2015B-PromptReco-v1"; short = "Run2015B_v1"; run_ranges = [ (251643,251883) ]; useAAA=False
+    compSelection = ""; compVeto = ""
     DatasetsAndTriggers = []
-    DatasetsAndTriggers.append( ("DoubleMuon", triggers_mumu_iso + triggers_mumu_ss + triggers_mumu_ht + triggers_3mu + triggers_3mu_alt) )
-    DatasetsAndTriggers.append( ("DoubleEG",   triggers_ee + triggers_ee_ht + triggers_3e) )
-    DatasetsAndTriggers.append( ("MuonEG",     triggers_mue + triggers_mue_ht + triggers_2mu1e + triggers_2e1mu) )
-    DatasetsAndTriggers.append( ("SingleMuon", triggers_1mu_iso + triggers_1mu_iso_50ns + triggers_1mu_noniso) )
-    DatasetsAndTriggers.append( ("SingleElectron", triggers_1e + triggers_1e_50ns) )
-    selectedComponents = []; vetos = []
-    if False: # for fake rate measurements in data
-        lepAna.loose_muon_dxy = 999
-        lepAna.loose_electron_dxy = 999
-        ttHLepSkim.minLeptons = 1
-        FRTrigs = triggers_FR_1mu_iso + triggers_FR_1mu_noiso + triggers_FR_1e_noiso + triggers_FR_1e_iso
-        for t in FRTrigs:
-            tShort = t.replace("HLT_","FR_").replace("_v*","")
-            triggerFlagsAna.triggerBits[tShort] = [ t ]
-        FRTrigs_mu = triggers_FR_1mu_iso + triggers_FR_1mu_noiso
-        FRTrigs_el = triggers_FR_1e_noiso + triggers_FR_1e_iso
-        for pd,trig in DatasetsAndTriggers:
-            if pd in ['DoubleMuon','SingleMuon']:
-                trig.extend(FRTrigs_mu)
-            elif pd in ['DoubleEG','SingleElectron']:
-                trig.extend(FRTrigs_el)
-            else:
-                print 'the strategy for trigger selection on MuonEG for FR studies should yet be implemented'
-                assert(False)
+    selectedComponents = []; vetos = []  
+ 
+    if SOS == True:
+        DatasetsAndTriggers.append( ("MET", triggers_Jet80MET90 + triggers_Jet80MET120 + triggers_MET120Mu5 ) )
+        #DatasetsAndTriggers.append( ("SingleMuon", triggers_1mu_iso + triggers_1mu_iso_50ns + triggers_1mu_noniso) )
+    else:
+        DatasetsAndTriggers.append( ("DoubleMuon", triggers_mumu_iso + triggers_mumu_ss + triggers_mumu_ht + triggers_3mu + triggers_3mu_alt) )
+        DatasetsAndTriggers.append( ("DoubleEG",   triggers_ee + triggers_ee_ht + triggers_3e) )
+        DatasetsAndTriggers.append( ("MuonEG",     triggers_mue + triggers_mue_ht + triggers_2mu1e + triggers_2e1mu) )
+        DatasetsAndTriggers.append( ("SingleMuon", triggers_1mu_iso + triggers_1mu_iso_50ns + triggers_1mu_noniso) )
+        DatasetsAndTriggers.append( ("SingleElectron", triggers_1e + triggers_1e_50ns) )
+
+        if False: # for fake rate measurements in data
+            lepAna.loose_muon_dxy = 999
+            lepAna.loose_electron_dxy = 999
+            ttHLepSkim.minLeptons = 1
+            FRTrigs = triggers_FR_1mu_iso + triggers_FR_1mu_noiso + triggers_FR_1e_noiso + triggers_FR_1e_iso
+            for t in FRTrigs:
+                tShort = t.replace("HLT_","FR_").replace("_v*","")
+                triggerFlagsAna.triggerBits[tShort] = [ t ]
+                FRTrigs_mu = triggers_FR_1mu_iso + triggers_FR_1mu_noiso
+                FRTrigs_el = triggers_FR_1e_noiso + triggers_FR_1e_iso
+                for pd,trig in DatasetsAndTriggers:
+                    if pd in ['DoubleMuon','SingleMuon']:
+                        trig.extend(FRTrigs_mu)
+                    elif pd in ['DoubleEG','SingleElectron']:
+                        trig.extend(FRTrigs_el)
+                    else:
+                        print 'the strategy for trigger selection on MuonEG for FR studies should yet be implemented'
+                        assert(False)
+                        
     for pd,triggers in DatasetsAndTriggers:
         for run_range in run_ranges:
             label = "runs_%d_%d" % run_range if run_range[0] != run_range[1] else "run_%d" % (run_range[0],)
-            comp = kreator.makeDataComponent(pd+"_"+short+"_"+label, 
+            compname = pd+"_"+short+"_"+label
+            if ((compSelection and not re.search(compSelection, compname)) or
+                (compVeto      and     re.search(compVeto,      compname))):
+                    print "Will skip %s" % (compname)
+                    continue
+            comp = kreator.makeDataComponent(compname, 
                                              "/"+pd+"/"+processing+"/MINIAOD", 
                                              "CMS", ".*root", 
                                              json=json, 
                                              run_range=run_range, 
-                                             triggers=triggers[:], vetoTriggers = vetos[:])
+                                             triggers=triggers[:], vetoTriggers = vetos[:],
+                                             useAAA=useAAA)
             print "Will process %s (%d files)" % (comp.name, len(comp.files))
 #            print "\ttrigger sel %s, veto %s" % (triggers, vetos)
-            comp.splitFactor = 1 #len(comp.files)
-            comp.fineSplitFactor = 4
+            comp.splitFactor = len(comp.files)
+            comp.fineSplitFactor = 1
             selectedComponents.append( comp )
         vetos += triggers
     if json is None:
@@ -238,6 +380,20 @@ if False: # QCD
     }
 
 
+#trigMatchExample = cfg.Analyzer(
+#    TriggerMatchAnalyzer, name="TriggerMatchAllObjects",
+#    processName = 'PAT',
+#    label = 'dummyTrigMatch',
+#    unpackPathNames = True,
+#    trgObjSelectors = [lambda ob: ob.pt()>20, lambda ob: abs(ob.eta())<2.5],
+#    collToMatch = "selectedLeptons",
+#    collMatchSelectors = [lambda lep,ob: abs(lep.pt()/ob.pt()-1)<0.5],
+#    collMatchDRCut = 0.3,
+#    univoqueMatching = True,
+#    verbose = True
+#)
+#susyCoreSequence.append(trigMatchExample)
+
     
 #-------- SEQUENCE -----------
 
@@ -248,13 +404,55 @@ sequence = cfg.Sequence(susyCoreSequence+[
     ])
 preprocessor = None
 
+if doMETpreprocessor:
+    removeResiduals = False # residuals are set to 1 in MC, no need to remove them
+    import tempfile
+    # -------------------- Running pre-processor
+    import subprocess
+    jecDBFile = '$CMSSW_BASE/src/CMGTools/RootTools/data/jec/Summer15_50nsV4_%s.db'%('DATA' if isData else 'MC')
+    jecEra    = 'Summer15_50nsV4_%s'%('DATA'if isData else 'MC')
+    tempfile.tempdir=os.environ['CMSSW_BASE']+'/src/CMGTools/TTHAnalysis/cfg'
+    tfile, tpath = tempfile.mkstemp(suffix='.py',prefix='MET_preproc_')
+    os.close(tfile)
+    preprocessorFile = tpath
+    extraArgs=[]
+    if isData:
+      extraArgs.append('--isData')
+      GT= '74X_dataRun2_Prompt_v1'
+    else:
+      GT= 'MCRUN2_74_V9A'
+    if removeResiduals: extraArgs.append('--removeResiduals')
+    if doAK4PFCHSchargedJets: extraArgs.append('--addReclusterTrackJetsAK4')
+    args = ['python',
+      os.path.expandvars('$CMSSW_BASE/python/CMGTools/ObjectStudies/corMETMiniAOD_cfgCreator.py'),\
+      '--GT='+GT,
+      '--outputFile='+preprocessorFile,
+      '--jecDBFile='+jecDBFile,
+      '--jecEra='+jecEra
+      ] + extraArgs
+    #print "Making pre-processorfile:"
+    #print " ".join(args)
+    subprocess.call(args)
+    from PhysicsTools.Heppy.utils.cmsswPreprocessor import CmsswPreprocessor
+    preprocessor = CmsswPreprocessor(preprocessorFile,prefetch=True) # prefetching input file for preprocessor
+
+
 #-------- HOW TO RUN -----------
 
 from PhysicsTools.HeppyCore.framework.heppy_loop import getHeppyOption
 test = getHeppyOption('test')
 if test == '1':
+    comp = DYJetsToLL_M50_50ns
+    comp.files = comp.files[:1]
+    print comp.files
+    comp.splitFactor = 1
+    if not getHeppyOption('single'):
+        comp.fineSplitFactor = 4
+    selectedComponents = [ comp ]
+elif test == '125':
     comp = TTJets
     comp.files = comp.files[:1]
+    print comp.files
     comp.splitFactor = 1
     if not getHeppyOption('single'):
         comp.fineSplitFactor = 4
@@ -331,6 +529,18 @@ elif test == 'PromptReco':
         else:
             comp.fineSplitFactor = 2
     if jsonAna in sequence: sequence.remove(jsonAna)
+elif test == "rereco":
+    selectedComponents = [ MuEG_740p9 ]
+    comp = selectedComponents[0]
+    comp.files = [ '/afs/cern.ch/work/g/gpetrucc/CMSSW_7_4_7/src/output.root' ]
+    comp.name  = 'ReRecoNewAlignment_251168'
+    comp.triggers = []
+    comp.json     = None
+    jetAna.recalibrateJets = False 
+    jetAna.smearJets       = False 
+    ttHLepSkim.minLeptons = 2
+    if jsonAna in sequence: sequence.remove(jsonAna)
+    if eventFlagsAna in sequence: sequence.remove(eventFlagsAna)
 elif test == "express":
     selectedComponents = [ MuEG_740p9 ]
     comp = selectedComponents[0]
@@ -348,6 +558,7 @@ elif test == "express":
     from PhysicsTools.Heppy.utils.cmsswPreprocessor import CmsswPreprocessor
     preprocessor = CmsswPreprocessor("miniAOD-data_PAT.py")
 
+
 ## output histogram
 outputService=[]
 from PhysicsTools.HeppyCore.framework.services.tfile import TFileService
@@ -363,9 +574,11 @@ outputService.append(output_service)
 # the following is declared in case this cfg is used in input to the heppy.py script
 from PhysicsTools.HeppyCore.framework.eventsfwlite import Events
 from CMGTools.TTHAnalysis.tools.EOSEventsWithDownload import EOSEventsWithDownload
-event_class = EOSEventsWithDownload
+event_class = EOSEventsWithDownload if not preprocessor else Events
+EOSEventsWithDownload.aggressive = 2 # always fetch if running on Wigner
 if getHeppyOption("nofetch"):
-    event_class = Events 
+    event_class = Events
+    if preprocessor: preprocessor.prefetch = False
 config = cfg.Config( components = selectedComponents,
                      sequence = sequence,
                      services = outputService, 
