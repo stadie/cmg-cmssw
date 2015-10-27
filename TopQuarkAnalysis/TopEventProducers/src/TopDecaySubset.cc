@@ -4,15 +4,11 @@
 #include "AnalysisDataFormats/TopObjects/interface/TopGenEvent.h"
 #include "TopQuarkAnalysis/TopEventProducers/interface/TopDecaySubset.h"
 
-#include "FWCore/Common/interface/Provenance.h"
-
 /// default constructor
 TopDecaySubset::TopDecaySubset(const edm::ParameterSet& cfg):
   srcToken_         (consumes<reco::GenParticleCollection>(cfg.getParameter<edm::InputTag>("src"))),
-  genEventInfo_srcToken_ (mayConsume < GenEventInfoProduct > (edm::InputTag("generator"))),
   addRadiation_(cfg.getParameter<bool>("addRadiation")),
-  showerModel_ (kStart),
-  runMode_(kRun1)
+  showerModel_ (kStart)
 {
   // mapping of the corresponding fillMode; see FillMode
   // enumerator of TopDecaySubset for available modes
@@ -23,14 +19,6 @@ TopDecaySubset::TopDecaySubset(const edm::ParameterSet& cfg):
     fillMode_=kStable;
   else
     throw cms::Exception("Configuration") << mode << " is not a supported FillMode!\n";
-
-  mode = cfg.getParameter<std::string>( "runMode" );
-    if(mode=="Run1")
-      runMode_=kRun1;
-    else if(mode=="Run2")
-    	runMode_=kRun2;
-    else
-      throw cms::Exception("Configuration") << mode << " is not a supported RunMode!\n";
 
   // produces a set of GenParticles following
   // the decay branch of top quarks to the first level of
@@ -54,47 +42,27 @@ TopDecaySubset::produce(edm::Event& event, const edm::EventSetup& setup)
   edm::Handle<reco::GenParticleCollection> src;
   event.getByToken(srcToken_, src);
 
-  // find out what generator we are dealing with
-  if (showerModel_ == kStart && runMode_ == kRun2) {
-    showerModel_ = checkShowerModel(event);
-  }
-
   // find top quarks in list of input particles
-  std::vector<const reco::GenParticle*> tops;
-  if(runMode_ == kRun1)
-	  tops = findTops(*src);
-  else
-	  tops = findPrimalTops(*src);
+  std::vector<const reco::GenParticle*> tops = findTops(*src);
 
   // determine shower model (only in first event)
-  if(showerModel_==kStart && runMode_ == kRun1)
+  if(showerModel_==kStart){
     showerModel_=checkShowerModel(tops);
+    std::cout << "shower model: " << showerModel_ << std::endl;
+  }
 
   if(showerModel_!=kNone) {
     // check sanity of W bosons
-	if (runMode_ == kRun1)
-		checkWBosons(tops);
-	else {
-		// nothing for the moment
-	}
+    checkWBosons(tops);
 
     // get ref product from the event
     const reco::GenParticleRefProd ref = event.getRefBeforePut<reco::GenParticleCollection>();
     // clear existing refs
     clearReferences();
-    if (runMode_ == kRun1) {
-    	// fill output
-    	fillListing(tops, *target);
-    	// fill references
-    	fillReferences(ref, *target);
-    }
-    else {
-    	std::vector<const reco::GenParticle*> decaying_tops = findDecayingTops(*src);
-		// fill output
-		fillListing(tops, decaying_tops, *target);
-		// fill references
-		fillReferences(ref, *target);
-	}
+    // fill output
+    fillListing(tops, *target);
+    // fill references
+    fillReferences(ref, *target);
   }
 
   // write vectors to the event
@@ -107,111 +75,10 @@ TopDecaySubset::findTops(const reco::GenParticleCollection& parts)
 {
   std::vector<const reco::GenParticle*> tops;
   for(reco::GenParticleCollection::const_iterator t=parts.begin(); t!=parts.end(); ++t){
-    if( std::abs(t->pdgId())==TopDecayID::tID && t->status()==TopDecayID::unfrag )
+    if( std::abs(t->pdgId())==TopDecayID::tID && (t->status()==TopDecayID::unfrag || t->status()==22) )
       tops.push_back( &(*t) );
   }
   return tops;
-}
-
-/// find primal top quarks (top quarks from the hard interaction)
-/// for Pythia6 this is identical to findDecayingTops
-std::vector<const reco::GenParticle*> TopDecaySubset::findPrimalTops(
-		const reco::GenParticleCollection& parts) {
-	std::vector<const reco::GenParticle*> tops;
-	for (reco::GenParticleCollection::const_iterator t = parts.begin();
-			t != parts.end(); ++t) {
-		if (std::abs(t->pdgId()) != TopDecayID::tID)
-			continue;
-
-		bool hasTopMother = false;
-		for (unsigned idx = 0; idx < t->numberOfMothers(); ++idx) {
-			if (std::abs(t->mother(idx)->pdgId()) == TopDecayID::tID)
-				hasTopMother = true;
-		}
-
-		if (hasTopMother)  // not a primal top
-			continue;
-		tops.push_back(&(*t));
-	}
-
-	return tops;
-}
-
-/// find decaying top quarks (quarks that decay to qW)
-/// for Pythia6 this is identical to findPrimalTops
-std::vector<const reco::GenParticle*> TopDecaySubset::findDecayingTops(
-		const reco::GenParticleCollection& parts) {
-	std::vector<const reco::GenParticle*> tops;
-	for (reco::GenParticleCollection::const_iterator t = parts.begin();
-			t != parts.end(); ++t) {
-		if (std::abs(t->pdgId()) != TopDecayID::tID)
-			continue;
-
-		bool hasTopDaughter = false;
-		for (unsigned idx = 0; idx < t->numberOfDaughters(); ++idx) {
-			if (std::abs(t->daughter(idx)->pdgId()) == TopDecayID::tID)
-				hasTopDaughter = true;
-		}
-
-		if (hasTopDaughter)  // not a decaying top
-			continue;
-		tops.push_back(&(*t));
-	}
-
-	return tops;
-}
-
-/// find W bosons that come from top quark decays
-/// for Pythia6 this is identical to findDecayingW
-const reco::GenParticle* TopDecaySubset::findPrimalW(
-		const reco::GenParticle* top) {
-	unsigned int w_index = 0;
-	for (unsigned idx = 0; idx < top->numberOfDaughters(); ++idx) {
-		if (std::abs(top->daughter(idx)->pdgId()) == TopDecayID::WID) {
-			w_index = idx;
-			break;
-		}
-	}
-	return (reco::GenParticle*)top->daughter(w_index);
-}
-
-/// find W bosons that come from top quark decays and decay themselves (end of the MC chain)
-/// for Pythia6 this is identical to findPrimalW
-//const reco::GenParticle* TopDecaySubset::findDecayingW(
-//		const reco::GenParticle* top) {
-//	const reco::GenParticle* decaying_W = findLastParticleInChain(findPrimalW(top));
-//	return findLastParticleInChain(findPrimalW(top));
-//}
-
-/// find the last particle in a (potentially) long chain of state transitions
-/// e.g. top[status==22]-> top[status==44 -> top[status==44] ->
-/// top[status==44] -> top[status==62]
-/// this function would pick the top with status 62
-const reco::GenParticle* TopDecaySubset::findLastParticleInChain(
-		const reco::GenParticle* p) {
-	int particleID = std::abs(p->pdgId());
-	bool containsItself = false;
-	unsigned int d_idx = 0;
-	for (unsigned idx = 0; idx < p->numberOfDaughters(); ++idx) {
-		if (std::abs(p->daughter(idx)->pdgId()) == particleID) {
-			containsItself = true;
-			d_idx = idx;
-		}
-	}
-
-	if (!containsItself)
-		return p;
-	else {
-    if (showerModel_ == kPythia){
-      // Pythia6 has a weird idea of W bosons (and maybe other particles)
-      // W (status == 3) -> q qbar' W. The new W is status 2 and has no daughters
-      if(p->status() == 3)
-        return p;
-    }
-    return findLastParticleInChain((reco::GenParticle*)p->daughter(d_idx));
-  }
-
-
 }
 
 /// check the decay chain for the exploited shower model
@@ -220,24 +87,33 @@ TopDecaySubset::checkShowerModel(const std::vector<const reco::GenParticle*>& to
 {
   for(std::vector<const reco::GenParticle*>::const_iterator it=tops.begin(); it!=tops.end(); ++it){
     const reco::GenParticle* top = *it;
+    // check for kPythia8 type showers: here the status 22 top quark will
+    // be existing
+    if( top->pdgId()==top->pdgId() && top->status()==22)
+      return kPythia8;
     // check for kHerwig type showers: here the status 3 top quark will
     // have a single status 2 top quark as daughter, which has again 3
     // or more status 2 daughters
     if( top->numberOfDaughters()==1){
-      if( top->begin()->pdgId()==top->pdgId() && top->begin()->status()==TopDecayID::stable && top->begin()->numberOfDaughters()>1)
-	return kHerwig;
+      if( top->begin()->pdgId()==top->pdgId() && top->begin()->status()==TopDecayID::stable ){
+        if( top->begin()->numberOfDaughters()>0 && top->begin()->begin()->pdgId()==top->pdgId() && top->begin()->begin()->status()==TopDecayID::stable ) return kHerwigpp;
+        if( top->begin()->numberOfDaughters()>1 ) return kHerwig;
+      }
     }
     // check for kPythia type showers: here the status 3 top quark will
     // have all decay products and a status 2 top quark as daughters
     // the status 2 top quark will be w/o further daughters
     if( top->numberOfDaughters()>1 ){
-      bool containsWBoson=false, containsQuarkDaughter=false;
+      bool containsWBoson=false, containsQuarkDaughter=false, isSherpa=false;
       for(reco::GenParticle::const_iterator td=top->begin(); td!=top->end(); ++td){
-	if( std::abs(td->pdgId ()) <TopDecayID::tID ) containsQuarkDaughter=true;
-	if( std::abs(td->pdgId ())==TopDecayID::WID ) containsWBoson=true;
+	    if( std::abs(td->pdgId ()) <TopDecayID::tID ) containsQuarkDaughter=true;
+	    if( std::abs(td->pdgId ())==TopDecayID::WID ) containsWBoson=true;
+        if( td->status() == 11 ) isSherpa=true;
       }
-      if(containsQuarkDaughter && containsWBoson)
-	return kPythia;
+      if(containsQuarkDaughter && containsWBoson && !isSherpa)
+	    return kPythia;
+      if(containsQuarkDaughter && containsWBoson && isSherpa)
+        return kSherpa;
     }
   }
   // if neither Herwig nor Pythia like
@@ -249,40 +125,14 @@ TopDecaySubset::checkShowerModel(const std::vector<const reco::GenParticle*>& to
     throw edm::Exception(edm::errors::LogicError,
 			 " Can not find back any of the supported hadronization models. Models \n"
 			 " which are supported are:                                            \n"
-			 " Pythia  LO(+PS): Top(status 3) --> WBoson(status 3), Quark(status 3)\n"
-			 " Herwig NLO(+PS): Top(status 2) --> Top(status 3) --> Top(status 2)  \n");
+			 " Pythia6  LO(+PS): Top(status 3) --> WBoson(status 3), Quark(status 3)\n"
+			 " Herwig6 NLO(+PS): Top(status 2) --> Top(status 3) --> Top(status 2)  \n"
+			 " Pythia8  LO(+PS): Top(status 22)\n"
+             " Herwig++ LO(+PS): Top(status 3) --> Top(status 2) --> Top(status 2)  \n"
+             " Sherpa2 NLO(+PS): Top(status 3) --> WBoson(status 11), Quark(status 11)\n");
   return kNone;
 }
 
-/// check the embedded MC information for the shower model
-TopDecaySubset::ShowerModel TopDecaySubset::checkShowerModel(
-		edm::Event& event) {
-	edm::Handle < GenEventInfoProduct > genEvtInfoProduct;
-	event.getByToken(genEventInfo_srcToken_, genEvtInfoProduct);
-
-	std::string moduleName = "";
-	if (genEvtInfoProduct.isValid()) {
-		const edm::Provenance& prov = event.getProvenance(
-				genEvtInfoProduct.id());
-		moduleName = edm::moduleName(prov);
-	}
-
-	ShowerModel shower(kStart);
-	if (moduleName.find("Pythia6") != std::string::npos)
-		shower = kPythia;
-	else if (moduleName.find("Pythia8") != std::string::npos)
-		shower = kPythia8;
-	else if (moduleName.find("Herwig6") != std::string::npos)
-		shower = kHerwig;
-	else if (moduleName.find("ThePEG") != std::string::npos)
-		// Herwig++
-		shower = kHerwig;
-	else if (moduleName.find("Sherpa") != std::string::npos)
-		shower = kSherpa;
-	else
-		shower = kNone;
-	return shower;
-}
 /// check whether the W boson is contained in the original gen particle listing
 void
 TopDecaySubset::checkWBosons(std::vector<const reco::GenParticle*>& tops) const
@@ -292,19 +142,107 @@ TopDecaySubset::checkWBosons(std::vector<const reco::GenParticle*>& tops) const
     const reco::GenParticle* top = *it;
     bool isContained=false;
     bool expectedStatus=false;
-    if(showerModel_!=kPythia && top->begin()==top->end())
+    if(showerModel_==kHerwig && top->begin()==top->end())
       throw edm::Exception(edm::errors::LogicError,
-			   "showerModel_!=kPythia && top->begin()==top->end()\n");
-    for(reco::GenParticle::const_iterator td=((showerModel_==kPythia) ? top->begin() : top->begin()->begin());
-	td!=((showerModel_==kPythia) ? top->end() : top->begin()->end());
-	++td){
-      if(std::abs(td->pdgId())==TopDecayID::WID) {
-	isContained=true;
-	if( ((showerModel_==kPythia) ? td->status()==TopDecayID::unfrag : td->status()==TopDecayID::stable) ) {
-	  expectedStatus=true;
-	  break;
-	}
+			   "showerModel_==kHerwig && top->begin()==top->end()\n");
+    if(showerModel_==kPythia8){
+      reco::Candidate::const_iterator topIt = top->begin();
+      unsigned int counter = 0;
+      do{
+    if(counter != 0){
+        topIt = topIt->begin();
+    }
+    ++counter;
+    unsigned int whichDaugther = 0;
+    unsigned int numberOfDaughters = topIt->numberOfDaughters();
+    //std::cout << "-1: " << topIt->pdgId() << " " << topIt->status() << std::endl;
+    //std::cout << " 0: " << topIt->pdgId() << " " << topIt->status() << std::endl;
+    while(std::abs(topIt->pdgId())!=TopDecayID::tID && whichDaugther<numberOfDaughters){
+        ++whichDaugther;
+        ++topIt;
+        //std::cout << " " << whichDaugther << ": " << topIt->pdgId() << " " << topIt->status() << std::endl;
+    }
+	//topIt = topIt->daughter(whichDaugther);
+    if(std::abs(topIt->pdgId())!=TopDecayID::tID){
+        throw edm::Exception(edm::errors::LogicError,
+             " Pythia8 decay chain does not match:\n"
+             " Top(status 22) --> Top(any status)\n");
+        return;
+    }
+	if(topIt->status() == 62){
+	  //std::cout << "checkWBosons" << std::endl;
+	  //std::cout << topIt->pdgId() << " " <<  topIt->status() << std::endl;
+	  for(reco::GenParticle::const_iterator td=topIt->begin(); td!=topIt->end(); ++td){
+	    //std::cout << "   " << td->pdgId() << " " <<  td->status() << std::endl;
+	    if(std::abs(td->pdgId())==TopDecayID::WID){
+	      isContained = true;
+	    }
+	    if(std::abs(td->status())==22){
+	      expectedStatus = true;
+	    }
+	    if(isContained && expectedStatus){
+	      break;
+	    }
+	  }
+        }
+      } while(topIt->status() != 62);
+    }
+    else if(showerModel_==kPythia || showerModel_==kSherpa){
+        for(reco::GenParticle::const_iterator td=top->begin(); td!=top->end(); ++td){
+            if(std::abs(td->pdgId())==TopDecayID::WID) {
+              isContained=true;
+              if( (td->status()==TopDecayID::unfrag && showerModel_==kPythia) || (td->status()==11 && showerModel_==kSherpa) ) {
+                expectedStatus=true;
+                break;
+              }
+            }
+        }
       }
+      else if(showerModel_==kHerwig){
+        for(reco::GenParticle::const_iterator td=top->begin()->begin(); td!=top->begin()->end(); ++td){
+            if(std::abs(td->pdgId())==TopDecayID::WID) {
+                isContained=true;
+                if( td->status()==TopDecayID::stable ) {
+                    expectedStatus=true;
+                    break;
+                }
+            }
+        }
+      }
+    else if(showerModel_==kHerwigpp){
+      reco::Candidate::const_iterator topIt = top->begin();
+      unsigned int counter = 0;
+      do{
+    if(counter != 0){
+        topIt = topIt->begin();
+    }
+    ++counter;
+    unsigned int whichDaugther = 0;
+    unsigned int numberOfDaughters = topIt->numberOfDaughters();
+    while(std::abs(topIt->pdgId())!=TopDecayID::tID && whichDaugther<numberOfDaughters){
+        ++whichDaugther;
+        ++topIt;
+    }
+    if(std::abs(topIt->pdgId())!=TopDecayID::tID){
+        throw edm::Exception(edm::errors::LogicError,
+             " Herwig++ decay chain does not match:\n"
+             " Top(status 3) --> Top(status 2)\n");
+        return;
+    }
+    if(topIt->status() == 2){
+      for(reco::GenParticle::const_iterator td=topIt->begin(); td!=topIt->end(); ++td){
+        if(std::abs(td->pdgId())==TopDecayID::WID){
+          isContained = true;
+        }
+        if(std::abs(td->status())==2){
+          expectedStatus = true;
+        }
+        if(isContained && expectedStatus){
+          break;
+        }
+      }
+        }
+      } while(topIt->status() != 2);
     }
     if(!expectedStatus) {
       it=tops.erase(it);
@@ -335,11 +273,15 @@ TopDecaySubset::fillListing(const std::vector<const reco::GenParticle*>& tops, r
   // determine status flag of the new
   // particle depending on the FillMode
   fillMode_ == kME ? statusFlag=3 : statusFlag=2;
+  if(showerModel_ == kPythia8) fillMode_ == kME ? statusFlag=22 : statusFlag=62;
+  if(showerModel_ == kSherpa)  fillMode_ == kME ? statusFlag=11 : statusFlag=11;
 
   for(std::vector<const reco::GenParticle*>::const_iterator it=tops.begin(); it!=tops.end(); ++it){
     const reco::GenParticle* t = *it;
     // if particle is top or anti-top
-    std::auto_ptr<reco::GenParticle> topPtr( new reco::GenParticle( t->threeCharge(), p4(it, statusFlag), t->vertex(), t->pdgId(), statusFlag, false ) );
+    unsigned int topStatusFlag = statusFlag;
+    if(showerModel_ == kSherpa) topStatusFlag = 3;
+    std::auto_ptr<reco::GenParticle> topPtr( new reco::GenParticle( t->threeCharge(), p4(it, topStatusFlag), t->vertex(), t->pdgId(), topStatusFlag, false ) );
     target.push_back( *topPtr );
     ++motherPartIdx_;
     // keep the top index for the map to manage the daughter refs
@@ -350,12 +292,49 @@ TopDecaySubset::fillListing(const std::vector<const reco::GenParticle*>& tops, r
     int iW = 0;
     std::vector<int> wDaughters;
     // sanity check
-    if(showerModel_!=kPythia && t->begin()==t->end())
+    if(showerModel_==kHerwig && t->begin()==t->end())
       throw edm::Exception(edm::errors::LogicError,
-			   "showerModel_!=kPythia && t->begin()==t->end()\n");
+			   "showerModel_==kHerwig && t->begin()==t->end()\n");
     //iterate over top daughters
-    for(reco::GenParticle::const_iterator td=((showerModel_==kPythia)?t->begin():t->begin()->begin()); td!=((showerModel_==kPythia)?t->end():t->begin()->end()); ++td){
-      if( td->status()==TopDecayID::unfrag && std::abs( td->pdgId() )<=TopDecayID::bID ){
+
+    if(showerModel_==kPythia8){
+      reco::Candidate::const_iterator topIt = t->begin();
+      unsigned int counter = 0;
+      do{
+    if(counter != 0){
+        topIt = topIt->begin();
+    }
+    ++counter;
+	if(topIt->status() == 62){
+	  t = (reco::GenParticle*)&*topIt;
+	  break;
+        }
+      } while(topIt->status() != 62);
+    }
+    if(showerModel_==kHerwigpp){
+      reco::Candidate::const_iterator topIt = t->begin();
+      unsigned int counter = 0;
+      do{
+        if(counter != 0){
+            topIt = topIt->begin();
+        }
+        ++counter;
+        if(std::abs(topIt->begin()->pdgId()) != 6 && topIt->begin()->status() == 2){
+            t = (reco::GenParticle*)&*topIt;
+            break;
+        }
+      } while(std::abs(topIt->pdgId()) == 6);
+    }
+    //else{
+    //std::cout << "fillListing" << std::endl;
+    //std::cout << t->pdgId() << " " <<  t->status() << std::endl;
+    for(reco::GenParticle::const_iterator td=((showerModel_==kHerwig)?t->begin()->begin():t->begin()); td!=((showerModel_==kHerwig)?t->begin()->end():t->end()); ++td){
+      //std::cout << "   " << td->pdgId() << " " <<  td->status() << std::endl;
+      //continue;
+      if( (td->status()==TopDecayID::unfrag || 
+          (td->status()==23 && showerModel_ == kPythia8) || 
+          (td->status()==11 && showerModel_ == kSherpa ) ||
+          (td->status()==2  && showerModel_ == kHerwigpp)  ) && std::abs( td->pdgId() )<=TopDecayID::bID ){
 	// if particle is beauty or other quark
 	std::auto_ptr<reco::GenParticle> bPtr( new reco::GenParticle( td->threeCharge(), p4( td, statusFlag ), td->vertex(), td->pdgId(), statusFlag, false ) );
 	target.push_back( *bPtr );
@@ -366,11 +345,30 @@ TopDecaySubset::fillListing(const std::vector<const reco::GenParticle*>& tops, r
 	}
       }
       // sanity check
-      if(showerModel_!=kPythia && td->begin()==td->end())
+      if(showerModel_==kHerwig && td->begin()==td->end())
 	throw edm::Exception(edm::errors::LogicError,
-			     "showerModel_!=kPythia && td->begin()==td->end()\n");
-      reco::GenParticle::const_iterator buffer = (showerModel_==kPythia)?td:td->begin();
-      if( buffer->status()==TopDecayID::unfrag && std::abs( buffer->pdgId() )==TopDecayID::WID ){
+			     "showerModel_==kHerwig && td->begin()==td->end()\n");
+      reco::GenParticle::const_iterator buffer = (showerModel_==kHerwig)?td->begin():td;
+      //std::cout << buffer->pdgId() << " " << buffer->status() << std::endl;
+
+    if(showerModel_==kHerwigpp){
+      reco::Candidate::const_iterator wIt = buffer;
+      unsigned int counter = 0;
+      do{
+        if(counter != 0){
+            wIt = wIt->begin();
+        }
+        ++counter;
+        if(std::abs(wIt->begin()->pdgId()) != 24 && wIt->begin()->status() == 2){
+            buffer = wIt;
+            break;
+        }
+      } while(std::abs(wIt->pdgId()) == 24);
+    }
+      if( ( buffer->status()==TopDecayID::unfrag || 
+            (td->status()==22 && showerModel_ == kPythia8) ||
+            (td->status()==11 && showerModel_ == kSherpa)  ||
+            (td->status()==2  && showerModel_ == kHerwigpp) ) && std::abs( buffer->pdgId() )==TopDecayID::WID ){
 	// if particle is a W boson
 	std::auto_ptr<reco::GenParticle> wPtr(  new reco::GenParticle( buffer->threeCharge(), p4( buffer, statusFlag), buffer->vertex(), buffer->pdgId(), statusFlag, true ) );
 	target.push_back( *wPtr );
@@ -381,25 +379,53 @@ TopDecaySubset::fillListing(const std::vector<const reco::GenParticle*>& tops, r
 	if(addRadiation_){
 	  addRadiation(motherPartIdx_,buffer,target);
 	}
-	if(showerModel_!=kPythia && buffer->begin()==buffer->end())
+	if(showerModel_==kHerwig && buffer->begin()==buffer->end())
 	  throw edm::Exception(edm::errors::LogicError,
-			       "showerModel_!=kPythia && buffer->begin()==buffer->end()\n");
+			       "showerModel_==kHerwig && buffer->begin()==buffer->end()\n");
 	// iterate over W daughters
-	for(reco::GenParticle::const_iterator wd=((showerModel_==kPythia)?buffer->begin():buffer->begin()->begin()); wd!=((showerModel_==kPythia)?buffer->end():buffer->begin()->end()); ++wd){
+	if(showerModel_==kPythia8){
+	  reco::Candidate::const_iterator wIt = buffer;
+	  do{
+	    //std::cout << wIt->pdgId() << " " << wIt->status() << " " << wIt->numberOfDaughters() << std::endl;
+	    wIt = wIt->begin();
+	    if(std::abs(wIt->pdgId()) != 24){
+	      break;
+	    }
+	    else{
+	      buffer = wIt;
+	    }
+	  } while(true);
+	}
+	//std::cout <<"w: " << buffer->pdgId() << " " << buffer->status() << std::endl;
+	//std::cout <<"d: "<< buffer->begin()->pdgId() << " " << buffer->begin()->status() << std::endl;
+	for(reco::GenParticle::const_iterator wd=((showerModel_==kHerwig)?buffer->begin()->begin():buffer->begin()); wd!=((showerModel_==kHerwig)?buffer->begin()->end():buffer->end()); ++wd){
+	  //std::cout <<"d: "<< wd->pdgId() << " " << wd->status() << std::endl;
 	  // make sure the W daughter is of status unfrag and not the W itself
-	  if( wd->status()==TopDecayID::unfrag && !(std::abs(wd->pdgId())==TopDecayID::WID) ) {
+	  if( ( wd->status()==TopDecayID::unfrag || showerModel_ == kPythia8 || showerModel_ == kSherpa || showerModel_ == kHerwigpp) && !(std::abs(wd->pdgId())==TopDecayID::WID) ) {
 	    std::auto_ptr<reco::GenParticle> qPtr( new reco::GenParticle( wd->threeCharge(), p4( wd, statusFlag ), wd->vertex(), wd->pdgId(), statusFlag, false) );
 	    target.push_back( *qPtr );
 	    // increment & push index of the top daughter
 	    wDaughters.push_back( ++motherPartIdx_ );
-	    if( wd->status()==TopDecayID::unfrag && std::abs( wd->pdgId() )==TopDecayID::tauID ){
-	      // add tau daughters if the particle is a tau pass
-	      // the daughter of the tau which is of status 2
-	      //addDaughters(motherPartIdx_, wd->begin(), target);
-	      // add tau daughters if the particle is a tau pass
-	      // the tau itself, which may add a tau daughter of
-	      // of status 2 to the listing
-	      addDaughters(motherPartIdx_,wd,target);
+	    /*
+	    if(std::abs( wd->pdgId() )==TopDecayID::tauID){
+	      reco::Candidate::const_iterator tauIt = wd;
+	      std::cout << "----------------------" << std::endl;
+	      do{
+		std::cout << tauIt->pdgId() << " " << tauIt->status() << std::endl;
+		tauIt = tauIt->begin();
+	      } while(tauIt->numberOfDaughters());
+	    }
+	    */
+	    if(showerModel_ != kPythia8 || showerModel_ != kSherpa || showerModel_ != kHerwigpp ){
+	      if( wd->status()==TopDecayID::unfrag && std::abs( wd->pdgId() )==TopDecayID::tauID ){
+		// add tau daughters if the particle is a tau pass
+		// the daughter of the tau which is of status 2
+		//addDaughters(motherPartIdx_, wd->begin(), target);
+		// add tau daughters if the particle is a tau pass
+		// the tau itself, which may add a tau daughter of
+		// of status 2 to the listing
+		addDaughters(motherPartIdx_,wd,target);
+	      }
 	    }
 	  }
 	}
@@ -412,6 +438,7 @@ TopDecaySubset::fillListing(const std::vector<const reco::GenParticle*>& tops, r
 	topDaughters.push_back( ++motherPartIdx_ );
       }
     }
+    //}
     // add potential sisters of the top quark;
     // only for top to prevent double counting
     if(t->numberOfMothers()>0 && t->pdgId()==TopDecayID::tID){
@@ -439,123 +466,6 @@ TopDecaySubset::fillListing(const std::vector<const reco::GenParticle*>& tops, r
   }
 }
 
-void TopDecaySubset::fillListing(
-		const std::vector<const reco::GenParticle*>& primalTops,
-		const std::vector<const reco::GenParticle*>& decayingTops,
-		reco::GenParticleCollection& target) {
-  std::vector<const reco::GenParticle*>::const_iterator top_start;
-  std::vector<const reco::GenParticle*>::const_iterator top_end;
-  if (fillMode_ == kME) {
-    top_start = primalTops.begin();
-    top_end = primalTops.end();
-  } else {
-    top_start = decayingTops.begin();
-    top_end = decayingTops.end();
-  }
-	for (std::vector<const reco::GenParticle*>::const_iterator it =
-	    top_start; it != top_end; ++it) {
-		const reco::GenParticle* t = *it;
-		// summation might happen here
-		std::auto_ptr < reco::GenParticle
-				> topPtr(
-						new reco::GenParticle(t->threeCharge(), t->p4(),
-								t->vertex(), t->pdgId(), t->status(), false));
-		target.push_back(*topPtr);
-		++motherPartIdx_;
-
-		// keep the top index for the map to manage the daughter refs
-		int iTop = motherPartIdx_;
-		std::vector<int> topDaughters;
-		// define the W boson index (to be set later) for the map to
-		// manage the daughter refs
-		int iW = 0;
-		std::vector<int> wDaughters;
-		const reco::GenParticle* final_top = findLastParticleInChain(t);
-
-		//iterate over top daughters
-		for (reco::GenParticle::const_iterator td = final_top->begin();
-				td != final_top->end(); ++td) {
-			if (std::abs(td->pdgId()) <= TopDecayID::bID) {
-				// if particle is beauty or other quark
-				std::auto_ptr < reco::GenParticle
-						> qPtr(
-								new reco::GenParticle(td->threeCharge(),
-										td->p4(), td->vertex(), td->pdgId(),
-										td->status(), false));
-				target.push_back(*qPtr);
-				// increment & push index of the top daughter
-				topDaughters.push_back(++motherPartIdx_);
-				if (addRadiation_) {
-					// for radation to be added we first need to
-					// pick the last quark in the MC chain
-					const reco::GenParticle* last_q = findLastParticleInChain(
-							(reco::GenParticle*) &*td);
-					addRadiation(motherPartIdx_, last_q, target);
-				}
-			} else if (std::abs(td->pdgId()) == TopDecayID::WID) {
-				// ladies and gentleman, we have a W boson
-				std::auto_ptr < reco::GenParticle
-						> WPtr(
-								new reco::GenParticle(td->threeCharge(),
-										td->p4(), td->vertex(), td->pdgId(),
-										td->status(), false));
-				target.push_back(*WPtr);
-				// increment & push index of the top daughter
-				topDaughters.push_back(++motherPartIdx_);
-				iW = motherPartIdx_;
-
-				// next are the daughers of our W boson
-        // for Pythia 6 this is wrong as the last W has no daughters at all!
-        // instead the status 3 W has 3 daughters: q qbar' and W (WTF??!)
-				const reco::GenParticle* decaying_W = findLastParticleInChain(
-						(reco::GenParticle*) &*td);
-				for (reco::GenParticle::const_iterator wd = decaying_W->begin();
-						wd != decaying_W->end(); ++wd) {
-					if (!(std::abs(wd->pdgId()) == TopDecayID::WID)) {
-						std::auto_ptr < reco::GenParticle
-								> qPtr(
-										new reco::GenParticle(wd->threeCharge(),
-												wd->p4(), wd->vertex(),
-												wd->pdgId(), wd->status(),
-												false));
-						target.push_back(*qPtr);
-						// increment & push index of the top daughter
-						wDaughters.push_back(++motherPartIdx_);
-						const reco::GenParticle* last_q = findLastParticleInChain(
-													(reco::GenParticle*) &*wd);
-						addRadiation(motherPartIdx_, last_q, target);
-						if (std::abs(wd->pdgId()) == TopDecayID::tauID) {
-							// add tau daughters
-							// currently it adds k-mesons etc as well, which
-							// is not what we want.
-							addDaughters(motherPartIdx_, wd, target);
-						}
-					}
-				}
-
-			} else {
-        if(addRadiation_ && ( td->pdgId()==TopDecayID::glueID ||
-            std::abs(td->pdgId())<TopDecayID::bID)){
-          // collect additional radiation from the top
-          std::auto_ptr<reco::GenParticle> radPtr(
-            new reco::GenParticle( td->threeCharge(),
-            td->p4(), td->vertex(), td->pdgId(), td->status(), false ) );
-          target.push_back( *radPtr );
-        }
-				//other top daughters like Zq for FCNC
-        // for pythia 6 many gluons end up here
-				//std::cout << "other top daughters: to be implemented"
-				//		<< std::endl;
-			}
-		}
-
-		// fill the map for the administration
-		// of daughter indices
-		refs_[iTop] = topDaughters;
-		refs_[iW] = wDaughters;
-	}
-}
-
 /// calculate lorentz vector from input
 reco::Particle::LorentzVector
 TopDecaySubset::p4(const std::vector<const reco::GenParticle*>::const_iterator top, int statusFlag)
@@ -563,13 +473,13 @@ TopDecaySubset::p4(const std::vector<const reco::GenParticle*>::const_iterator t
   // calculate the four vector for top/anti-top quarks from
   // the W boson and the b quark plain or including all
   // additional radiation depending on switch 'plain'
-  if(statusFlag==TopDecayID::unfrag){
+  if(statusFlag==TopDecayID::unfrag || showerModel_ == kPythia8 || showerModel_ == kSherpa || showerModel_ == kHerwigpp){
     // return 4 momentum as it is
     return (*top)->p4();
   }
   reco::Particle::LorentzVector vec;
   for(reco::GenParticle::const_iterator p=(*top)->begin(); p!=(*top)->end(); ++p){
-    if( p->status() == TopDecayID::unfrag ){
+    if( p->status() == TopDecayID::unfrag){
       // descend by one level for each
       // status 3 particle on the way
       vec+=p4( p, statusFlag );
@@ -603,13 +513,13 @@ TopDecaySubset::p4(const reco::GenParticle::const_iterator part, int statusFlag)
 {
   // calculate the four vector for all top daughters from
   // their daughters including additional radiation
-  if(statusFlag==TopDecayID::unfrag){
+  if(statusFlag==TopDecayID::unfrag || showerModel_ == kPythia8 || showerModel_ == kSherpa || showerModel_ == kHerwigpp){
     // return 4 momentum as it is
     return part->p4();
   }
   reco::Particle::LorentzVector vec;
   for(reco::GenParticle::const_iterator p=part->begin(); p!=part->end(); ++p){
-    if( p->status()<=TopDecayID::stable && std::abs(p->pdgId ())==TopDecayID::WID){
+    if( (p->status()<=TopDecayID::stable) && std::abs(p->pdgId ())==TopDecayID::WID){
       vec=p->p4();
     }
     else{
@@ -640,7 +550,7 @@ TopDecaySubset::addRadiation(int& idx, const reco::GenParticle::const_iterator p
     if(daughter->status()<=TopDecayID::stable && daughter->pdgId()!=part->pdgId()){
       // skip comment lines and make sure that
       // the particle is not double counted as
-      // daughter of itself
+      // dasughter of itself
       std::auto_ptr<reco::GenParticle> ptr(  new reco::GenParticle( daughter->threeCharge(), daughter->p4(), daughter->vertex(), daughter->pdgId(), daughter->status(), false) );
       target.push_back( *ptr );
       daughters.push_back( ++idx ); //push index of daughter
@@ -651,30 +561,6 @@ TopDecaySubset::addRadiation(int& idx, const reco::GenParticle::const_iterator p
   }
 }
 
-void TopDecaySubset::addRadiation(int& idx, const reco::GenParticle* part,
-		reco::GenParticleCollection& target) {
-	std::vector<int> daughters;
-	int idxBuffer = idx;
-	for (reco::GenParticle::const_iterator daughter = part->begin();
-			daughter != part->end(); ++daughter) {
-		// either pick daughters as long as they are different
-		// to the initial particle
-		if (daughter->pdgId() != part->pdgId()) {
-			std::auto_ptr < reco::GenParticle
-					> ptr(
-							new reco::GenParticle(daughter->threeCharge(),
-									daughter->p4(), daughter->vertex(),
-									daughter->pdgId(), daughter->status(),
-									false));
-			target.push_back(*ptr);
-			daughters.push_back(++idx); //push index of daughter
-		}
-	}
-	if (daughters.size()) {
-		refs_[idxBuffer] = daughters;
-	}
-}
-
 /// recursively fill vector for all further decay particles of a given particle
 void
 TopDecaySubset::addDaughters(int& idx, const reco::GenParticle::const_iterator part, reco::GenParticleCollection& target, bool recursive)
@@ -682,14 +568,14 @@ TopDecaySubset::addDaughters(int& idx, const reco::GenParticle::const_iterator p
   std::vector<int> daughters;
   int idxBuffer = idx;
   for(reco::GenParticle::const_iterator daughter=part->begin(); daughter!=part->end(); ++daughter){
-      std::auto_ptr<reco::GenParticle> ptr( new reco::GenParticle( daughter->threeCharge(), daughter->p4(), daughter->vertex(), daughter->pdgId(), daughter->status(), false) );
-      target.push_back( *ptr );
-      // increment & push index of daughter
-      daughters.push_back( ++idx );
-      // continue recursively if desired
-      if(recursive){
-	addDaughters(idx,daughter,target);
-      }
+    std::auto_ptr<reco::GenParticle> ptr( new reco::GenParticle( daughter->threeCharge(), daughter->p4(), daughter->vertex(), daughter->pdgId(), daughter->status(), false) );
+    target.push_back( *ptr );
+    // increment & push index of daughter
+    daughters.push_back( ++idx );
+    // continue recursively if desired
+    if(recursive){
+      addDaughters(idx,daughter,target);
+    }
   }
   if(daughters.size()) {
     refs_[ idxBuffer ] = daughters;
@@ -720,7 +606,7 @@ TopDecaySubset::fillReferences(const reco::GenParticleRefProd& ref, reco::GenPar
 	  daughter!=daughters->second.end(); ++daughter){
 	reco::GenParticle* part = dynamic_cast<reco::GenParticle* > (&(*p));
 	if(part == 0){
-	 throw edm::Exception( edm::errors::InvalidReference, "Not a GenParticle" );
+	  throw edm::Exception( edm::errors::InvalidReference, "Not a GenParticle" );
 	}
 	part->addDaughter( reco::GenParticleRef(ref, *daughter) );
 	sel[*daughter].addMother( reco::GenParticleRef(ref, idx) );
