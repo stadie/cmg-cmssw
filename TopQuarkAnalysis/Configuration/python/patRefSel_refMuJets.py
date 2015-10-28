@@ -9,7 +9,7 @@
 ### Trigger selection
 
 # HLT selection
-triggerSelectionData  = 'HLT_IsoMu24_eta2p1_v*'
+triggerSelectionData  = 'HLT_IsoMu18_v*'
 triggerSelectionMC    = 'HLT_*' # not recommended
 
 ### Muon selection
@@ -53,7 +53,7 @@ jetCut += ' && (chargedEmEnergyFraction < 0.99 || abs(eta) >= 2.4)'   # PF jet I
 jetCut += ' && (chargedHadronEnergyFraction > 0. || abs(eta) >= 2.4)' # PF jet ID:
 jetCut += ' && (chargedMultiplicity > 0 || abs(eta) >= 2.4)'          # PF jet ID:
 # Kinematics
-jetCut  +' && abs(eta) < 2.5'                                        # pseudo-rapisity range
+jetCut  += ' && abs(eta) < 2.5'                                        # pseudo-rapisity range
 # varying jet pt thresholds
 veryLooseJetCut = 'pt > 30.' # transverse momentum (4 jets)
 looseJetCut     = 'pt > 30.' # transverse momentum (3 jets)
@@ -65,7 +65,7 @@ veryTightJetCut = 'pt > 30.' # transverse momentum (leading jet)
 # Minimal selection for veto electrons
 # ... using GsfElectron kinematics
 # Electron ID
-electronGsfCut  =     'electronID("cutBasedElectronID-CSA14-50ns-V1-standalone-veto")'                                                  # electrons ID
+electronGsfCut  =     'electronID("cutBasedElectronID-Spring15-25ns-V1-standalone-veto")'                                                  # electrons ID
 # Kinematics
 electronGsfCut += ' && ecalDrivenMomentum.pt > 20.'                                                                                     # transverse energy
 electronGsfCut += ' && abs(ecalDrivenMomentum.eta) < 2.5'                                                                               # pseudo-rapisity range
