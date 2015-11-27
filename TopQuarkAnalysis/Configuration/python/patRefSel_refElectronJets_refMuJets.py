@@ -66,7 +66,7 @@ veryTightJetCut = 'pt > 30.' # transverse momentum (leading jet)
 ### Electron selection
 #Signalelektron
 # Electron ID
-electronGsfCut  =     'electronID("cutBasedElectronID-Spring15-25ns-V1-standalone-loose")==1. || electronID("cutBasedElectronID-Spring15-25ns-V1-standalone-loose")==3. || electronID("cutBasedElectronID-Spring15-25ns-V1-standalone-loose")==5. || electronID("cutBasedElectronID-Spring15-25ns-V1-standalone-loose")==7.'   #original: 'electronID("cutBasedElectronID-CSA14-50ns-V1-standalone-veto")'                                                  # electrons ID aktuell? 25ns? yes! look for value map below
+electronGsfCut  =     'electronID("cutBasedElectronID-CSA14-PU20bx25-V0-standalone-loose")==1. || electronID("cutBasedElectronID-CSA14-PU20bx25-V0-standalone-loose")==3. || electronID("cutBasedElectronID-CSA14-PU20bx25-V0-standalone-loose")==5. || electronID("cutBasedElectronID-CSA14-PU20bx25-V0-standalone-loose")==7.'   #original: 'electronID("cutBasedElectronID-CSA14-50ns-V1-standalone-veto")'                                                  # electrons ID aktuell? 25ns? yes! look for value map below
 # Kinematics
 electronGsfCut += ' && ecalDrivenMomentum.pt > 20.'                                                                                     # transverse energy
 electronGsfCut += ' && abs(ecalDrivenMomentum.eta) < 2.5'                                                                               # pseudo-rapisity range
@@ -83,7 +83,7 @@ signalElectronCut = '' #TODO\
 # Minimal selection for veto electrons
 # ... using GsfElectron kinematics
 # Electron ID
-electronGsfVetoCut  =     'electronID("cutBasedElectronID-Spring15-25ns-V1-standalone-veto")'                                                  # electrons ID
+electronGsfVetoCut  =     'electronID("cutBasedElectronID-CSA14-50ns-V1-standalone-veto")'                                                  # electrons ID
 # Kinematics
 electronGsfVetoCut += ' && ecalDrivenMomentum.pt > 20.'                                                                                     # transverse energy
 electronGsfVetoCut += ' && abs(ecalDrivenMomentum.eta) < 2.5'                                                                               # pseudo-rapisity range
@@ -95,13 +95,13 @@ electronVetoCut = electronGsfVetoCut
 ### ------------------------------------------------------------------------ ###
 
 #dileptonElecVeto
-dileptonElectronVetoCut = 'electronID("cutBasedElectronID-Spring15-50ns-V1-standalone-loose")' #formely on veto, recommendation states loose
+dileptonElectronVetoCut = 'electronID("cutBasedElectronID-CSA14-PU20bx25-V0-standalone-loose")' #formely on veto, recommendation states loose
 #dileptonElectronVetoCut +=' && ecalDrivenMomentum.pt > 20. && abs(ecalDrivenMomentum.eta) < 2.5'    
 #dileptonElectronVetoCut +=' && (chargedHadronIso+max(0.,neutralHadronIso+photonIso-1.0*userIsolation("User1Iso")))/ecalDrivenMomentum.pt < 0.2'
 
 
 ### Electron Conversion Rejection
-conversionRejectionCut = 'electronID("cutBasedElectronID-Spring15-50ns-V1-standalone-loose")==4. || electronID("cutBasedElectronID-CSA14-PU20bx25-V0-standalone-loose")==5. || electronID("cutBasedElectronID-CSA14-PU20bx25-V0-standalone-loose")==6. || electronID("cutBasedElectronID-CSA14-PU20bx25-V0-standalone-loose")==7.'  #check Electron.h
+conversionRejectionCut = 'electronID("cutBasedElectronID-CSA14-PU20bx25-V0-standalone-loose")==4. || electronID("cutBasedElectronID-CSA14-PU20bx25-V0-standalone-loose")==5. || electronID("cutBasedElectronID-CSA14-PU20bx25-V0-standalone-loose")==6. || electronID("cutBasedElectronID-CSA14-PU20bx25-V0-standalone-loose")==7.'  #check Electron.h
 
 #reminder ElectronID value map
 #0: fails
